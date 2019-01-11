@@ -10,7 +10,8 @@ with open('./tests/data/login.txt', 'rt') as f,\
 
 
 class FollowerClient(showdown.Client):
-    def on_init(self):
+    def __init__(self, **kwargs):
+        showdown.Client.__init__(self, **kwargs)
         self.owner = showdown.User(ownername, client=self)
 
     async def on_query_response(self, query_response):
@@ -30,5 +31,4 @@ class FollowerClient(showdown.Client):
     async def get_owner_details(self): 
         await self.owner.request_user_details()
 
-
-FollowerClient(name=username, password=password)
+FollowerClient(name=username, password=password).start()

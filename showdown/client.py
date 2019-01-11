@@ -6,75 +6,44 @@ import json
 import time
 import re
 import logging
-import time
 import traceback
-import random
-import string
-from .utils import *
+from . import utils
 from . import user, message, room
 from functools import wraps
 
 #Logging setup
 logger = logging.getLogger(__name__)
 
-#Base URLs
-ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{}/action.php'
-WEBSOCKET_URL_BASE = 'wss://{server_hostname}/showdown/{num_triplet}/{char_octet}/websocket'
-
-#Default servers
-server_map = {
-    'azure': 'oppai.azure.lol',
-    'showdown': 'sim2.psim.us'
-}
-
-def generate_ws_triplet():
-    num = random.randint(0, 999)
-    return str(num).zfill(3)
-
-def generate_ws_octet():
-    octet = ''
-    for _ in range(8):
-        octet += random.choice(string.ascii_lowercase)
-    return octet
-
-def generate_ws_url(server_hostname):
-    return WEBSOCKET_URL_BASE.format(
-            server_hostname = server_hostname,
-            num_triplet     = generate_ws_triplet(),
-            char_octet      = generate_ws_octet())
-
 class Client(user.User):
-    def __init__(self, name='', password=None, autologin=True, max_room_logs=5000,
+    def __init__(self, name='', password=None, loop=None, max_room_logs=5000,
                     server_name='showdown', server_hostname=None):
-        super().__init__(name)
-        self.init_time = time.time()
-        self.on_init() # Subclasses can override to do stuff on init
+        super().__init__(name, client=self)
 
         # Set server info
         if not server_hostname:
-            if server_name not in server_map:
+            if server_name not in utils.server_map:
                 # TODO: More specific exception here
                 raise Exception('Unrecognized server name: "{}". Please specify a `server_hostname'.format(server_name))
-            server_hostname = server_map[server_name]
+            server_hostname = utils.server_map[server_name]
         self.server_name = server_name
         self.server_hostname = server_hostname
 
         # URL setup
-        self.action_url = ACTION_URL_BASE.format(server_name)
-        self.websocket_url = generate_ws_url(server_hostname)
+        self.action_url = utils.generate_action_url(server_name)
+        self.websocket_url = utils.generate_ws_url(server_hostname)
         logger.debug('Using showdown action url at  {}'.format(self.action_url))
         logger.debug('Using showdown websocket at {}'.format(self.websocket_url))
 
         # Store client params
-        self.autologin = autologin
         self.password = password
         self.challengekeyid, self.challstr = None, None
         self.output_queue = asyncio.Queue()
         self.rooms = {}
         self.max_room_logs = max_room_logs
+        self.loop = loop or asyncio.get_event_loop()
 
-        # Start event loop
-        self.loop = asyncio.get_event_loop()
+    def start(self, autologin=True):
+        self.autologin = autologin
         self.loop.run_until_complete(self.handler())
 
     async def set_avatar(self, avatar_id):
@@ -94,7 +63,7 @@ class Client(user.User):
 
         logger.info('Logging in as {}'.format(self.name))
         result = requests.post(self.action_url, data = data)
-        result_data = parse_http_input(result.text)
+        result_data = utils.parse_http_input(result.text)
         assertion_data = result_data['assertion']
         await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, assertion_data))
         await self.on_login()
@@ -181,10 +150,10 @@ class Client(user.User):
             logger.info('Connected on {}'.format(self.websocket_url))
             await self.on_connect()
             return
-        inputs = parse_socket_input(socket_input)
+        inputs = utils.parse_socket_input(socket_input)
         for room_id, inp in inputs:
             logger.debug('Parsing:\n{}'.format(inp))
-            inp_type, params = parse_text_input(inp)
+            inp_type, params = utils.parse_text_input(inp)
 
             # Parse main types of input
             if inp_type == 'challstr':
@@ -243,13 +212,14 @@ class Client(user.User):
                             'params: {}'.format(room_id, inp_type, params))
 
             await self.update_rooms(room_id, inp)
-            await self.post_parse(room_id, inp_type, params)
+            await self.on_receive(room_id, inp_type, params)
 
     async def update_rooms(self, room_id, inp):
         room_id = room_id or 'lobby'
         if room_id in self.rooms:
             self.rooms[room_id].add_content(inp)
 
+    #Hooks
     async def on_connect(self):
         pass
 
@@ -280,10 +250,7 @@ class Client(user.User):
     async def on_raw_text(self, raw_text):
         pass
 
-    async def post_parse(self, room_id, inp_type, params):
-        pass
-
-    def on_init(self):
+    async def on_receive(self, room_id, inp_type, params):
         pass
 
 class QueryResponse:
@@ -294,4 +261,4 @@ class QueryResponse:
     def __repr__(self):
         return '<QueryResponse ({}) {}>'.format(
             self.type,
-            abbreviate(str(self.data)))
+            utils.abbreviate(str(self.data)))
