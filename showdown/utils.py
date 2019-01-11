@@ -4,6 +4,7 @@ import random
 import string
 
 def abbreviate(content):
+    content = str(content)
     content_length = len(content)
     return content[:20].rstrip() + ('...' if content_length > 20 else '')
 
@@ -32,10 +33,10 @@ def parse_socket_input(socket_input):
         for row in loaded:
             loaded = row.splitlines()
             if loaded[0].startswith('>'):
-                room_id = loaded[0][1:]
+                room_id = loaded[0][1:] or 'lobby'
                 raw_events = loaded[1:]
             else:
-                room_id = None
+                room_id = 'lobby'
                 raw_events = loaded
             for event in raw_events:
                 result.append((room_id, event))

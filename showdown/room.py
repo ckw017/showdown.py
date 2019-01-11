@@ -1,5 +1,5 @@
 from collections import deque
-from .utils import parse_text_input, name_to_id
+from .utils import parse_text_input, name_to_id, abbreviate
 from .user import UserLeave, UserJoin, UserNameChange, User
 
 class Room:
@@ -118,4 +118,4 @@ class TourUpdate:
         return '<TourUpdate ({}) type={} params={}>'.format(\
             self.room_id,
             self.type,
-            self.params)
+            abbreviate(self.params))

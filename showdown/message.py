@@ -4,7 +4,7 @@ from .utils import abbreviate
 
 class ChatMessage:
     def __init__(self, room_id, inp_type, *params, client=None):
-        self.room_id = room_id or 'lobby'
+        self.room_id = room_id
         if inp_type == 'c':
             self.timestamp = None
         elif inp_type == 'c:':
@@ -37,7 +37,7 @@ class PrivateMessage:
 
 class RawText:
     def __init__(self, room_id, content):
-        self.room_id = room_id or 'lobby'
+        self.room_id = room_id
         self.content = content
 
     def __repr__(self):
