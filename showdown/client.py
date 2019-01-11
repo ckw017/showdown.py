@@ -1,7 +1,6 @@
 import asyncio
 import requests
 import websockets
-import pprint
 import json
 import time
 import re
@@ -66,7 +65,7 @@ class Client(user.User):
         result_data = utils.parse_http_input(result.text)
         assertion_data = result_data['assertion']
         await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, assertion_data))
-        await self.on_login()
+        await self.on_login(result_data)
 
     async def upload_team(self, team_str):
         await self.add_output('|/utm {}'.format(team_str))
@@ -128,7 +127,8 @@ class Client(user.User):
                 while True:
                     start_time = time.time()
                     await func(*args, **kwargs)
-                    await asyncio.sleep(max(0, interval - (time.time() - start_time)))
+                    elapsed = time.time() - start_time
+                    await asyncio.sleep(max(0, interval - elapsed))
             wrapper.is_interval_task = True
             return wrapper
         return decorator
@@ -138,7 +138,7 @@ class Client(user.User):
     async def sender(self):
         out = await self.output_queue.get()
         out = [out] if type(out) is str else out
-        logger.debug('>>> Sending `{}`'.format(out))
+        logger.debug('>>> Sending:\n{}'.format(out))
         await self.websocket.send(json.dumps(out))
         await asyncio.sleep(len(out) * .5)
 
@@ -163,7 +163,7 @@ class Client(user.User):
                 if self.name and self.password and self.autologin:
                     await self.login()
                 elif self.autologin:
-                    logger.warn('Cannot login without username or password.')
+                    logger.warn('Cannot login without username and password.')
             elif inp_type == 'j':
                 user_join = user.UserJoin(room_id, *params, client=self)
                 logger.info(user_join)
@@ -197,10 +197,16 @@ class Client(user.User):
                     room_class = room.Room
                 elif room_type == 'battle':
                     room_class = room.Battle
-                self.rooms[room_id] = room_class(room_id, client=self, max_logs=self.max_room_logs)
+                room_obj = room_class(room_id, client=self, max_logs=self.max_room_logs)
+                self.rooms[room_id] = room_obj
+                await self.on_room_init(room_obj)
             elif inp_type == 'deinit':
                 if room_id in self.rooms:
-                    del self.rooms[room_id]
+                    await self.on_room_deinit(self.rooms.pop(room_id))
+            elif inp_type == 'tournament':
+                tour_update = room.TourUpdate(room_id, *params)
+                logger.info(tour_update)
+                await self.on_tour_update(tour_update)
             elif inp_type == 'rawtext':
                 raw_text = message.RawText(room_id, *params)
                 logger.info(raw_text)
@@ -226,16 +232,25 @@ class Client(user.User):
     async def on_challstr(self):
         pass
 
-    async def on_login(self):
-        pass
-
-    async def on_user_name_change(self, name_change):
+    async def on_login(self, login_response):
         pass
 
     async def on_user_leave(self, user_leave):
         pass
 
     async def on_user_join(self, user_join):
+        pass
+
+    async def on_user_name_change(self, user_name_change):
+        pass
+
+    async def on_tour_update(self, tour_update):
+        pass
+
+    async def on_room_init(self, room):
+        pass
+
+    async def on_room_deinit(self, room_obj):
         pass
 
     async def on_query_response(self, query_response):

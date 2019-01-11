@@ -7,7 +7,7 @@ import string
 ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{server_name}/action.php'
 WEBSOCKET_URL_BASE = 'wss://{server_hostname}/showdown/{num_triplet}/{char_octet}/websocket'
 
-#Default servers
+#Default servers {server_name:server_hostname}
 server_map = {
     'azure': 'oppai.azure.lol',
     'showdown': 'sim2.psim.us'
@@ -36,6 +36,9 @@ def abbreviate(content):
     content_length = len(content)
     return content[:20].rstrip() + ('...' if content_length > 20 else '')
 
+def name_to_id(input_str):
+    return re.sub(r'(\W|_)', '', input_str.lower()).strip()
+
 def parse_text_input(text_input):
     tokens = text_input.strip().split('|')
     if len(tokens) == 1:
@@ -45,9 +48,6 @@ def parse_text_input(text_input):
         inp_type = tokens[1].lower()
         params = tokens[2:]
     return inp_type, params
-
-def name_to_id(input_str):
-    return re.sub(r'(\W|_)', '', input_str.lower()).strip()
 
 def parse_http_input(http_input):
     if http_input.startswith(']'):

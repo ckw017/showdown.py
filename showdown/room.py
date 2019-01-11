@@ -1,6 +1,6 @@
 from collections import deque
 from .utils import parse_text_input, name_to_id
-from .user import UserLeave, UserJoin, UserNameChange, User, Player
+from .user import UserLeave, UserJoin, UserNameChange, User
 
 class Room:
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -37,6 +37,15 @@ class Room:
             user_str = params[0]
             user = User(user_str, client=self.client)
             self.userlist[user.id] = user
+
+    def __eq__(self, other):
+        return isinstance(other, Room) and self.id == other.id
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.id)
 
     async def request_auth(self):
         if self.client:
@@ -96,4 +105,17 @@ class Battle(Room):
         else:
             raise Exception('A client is needed to perform this action')
 
+class Tournament:
+    pass
 
+class TourUpdate:
+    def __init__(self, room_id, *params):
+        self.room_id = room_id
+        self.type = params[0]
+        self.params = params[1:]
+
+    def __repr__(self):
+        return '<TourUpdate ({}) type={} params={}>'.format(\
+            self.room_id,
+            self.type,
+            self.params)

@@ -16,26 +16,27 @@ class User:
         self.id = name_to_id(name)
         self.client = client
 
+    def __eq__(self, other):
+        return isinstance(other, User) and self.id == other.id
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __repr__(self):
+        return '<User {}>'.format(str(self))
+
+    def __str__(self):
+        return '{}{}'.format(self.auth.strip(), self.name)    
+
     def set_name(self, name):
         self.name = name
         self.id = name_to_id(name)
 
     def name_matches(self, username):
         return self.id == name_to_id(username)
-
-    def __eq__(self, other):
-        if issubclass(type(other), User):
-            return other.id == self.id
-        return False
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __repr__(self):
-        return '<User {}>'.format(str(self))
-
-    def __str__(self):
-        return '{}{}'.format(self.auth.strip(), self.name)
 
     async def message(self, content):
         if self.client:
@@ -61,10 +62,6 @@ class User:
                 server_name = 'showdown'
         result = requests.get(ACTION_URL_BASE.format(server_name), params=params).text
         return parse_http_input(result)
-
-class Player(User):
-    def __init__(self, user_str, client=None):
-        pass
 
 class _UserMove:
     def __init__(self, room_id, user_str, client=None):
