@@ -66,7 +66,6 @@ class Player(User):
     def __init__(self, user_str, client=None):
         pass
 
-#Base class for UserJoin/UserLeave
 class _UserMove:
     def __init__(self, room_id, user_str, client=None):
         self.user = User(user_str)

@@ -1,7 +1,36 @@
 import json
 import re
+import random
+import string
 
-ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{}/action.php'
+#Base URLs
+ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{server_name}/action.php'
+WEBSOCKET_URL_BASE = 'wss://{server_hostname}/showdown/{num_triplet}/{char_octet}/websocket'
+
+#Default servers
+server_map = {
+    'azure': 'oppai.azure.lol',
+    'showdown': 'sim2.psim.us'
+}
+
+def _generate_ws_triplet():
+    num = random.randint(0, 999)
+    return str(num).zfill(3)
+
+def _generate_ws_octet():
+    octet = ''
+    for _ in range(8):
+        octet += random.choice(string.ascii_lowercase)
+    return octet
+
+def generate_ws_url(server_hostname):
+    return WEBSOCKET_URL_BASE.format(
+            server_hostname = server_hostname,
+            num_triplet     = _generate_ws_triplet(),
+            char_octet      = _generate_ws_octet())
+
+def generate_action_url(server_name):
+    return ACTION_URL_BASE.format(server_name = server_name)
 
 def abbreviate(content):
     content_length = len(content)
