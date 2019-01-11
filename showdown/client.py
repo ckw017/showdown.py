@@ -12,18 +12,22 @@ import time
 import traceback
 import random
 import string
-from . import events
+from .utils import abbreviate, parse_http_input, parse_socket_input
+from . import events, user, message
 from functools import wraps
 
-ACTION_URL_BASE = 'https://play.pokemonshowdown.com/~~{}/action.php'
+#Logging setup
+logger = logging.getLogger(__name__)
+
+#Base URLs
+ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{}/action.php'
 WEBSOCKET_URL_BASE = 'wss://{server_hostname}/showdown/{num_triplet}/{char_octet}/websocket'
 
+#Default servers
 server_map = {
     'azure': 'oppai.azure.lol',
     'showdown': 'sim2.psim.us'
 }
-
-logger = logging.getLogger(__name__)
 
 def generate_ws_triplet():
     num = random.randint(0, 999)
@@ -35,41 +39,14 @@ def generate_ws_octet():
         octet += random.choice(string.ascii_lowercase)
     return octet
 
+def generate_ws_url(server_hostname):
+    return WEBSOCKET_URL_BASE.format(
+            server_hostname = server_hostname,
+            num_triplet     = generate_ws_triplet(),
+            char_octet      = generate_ws_octet())
 
-class User:
-    def __init__(self, name):
-        self.name = name
-        self.id = clean(name)
-
-
-    def __eq__(self, other):
-        if type(other) == str:
-            return self.id == clean(other)
-        if issubclass(type(other), User):
-            return self.id == other.id
-        return False
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __repr__(self):
-        return '<User {}>'.format(self.name)
-
-    async def request_user_details(self, client):
-        await client.add_output('|/cmd userdetails {}'.format(self.id))
-
-    async def get_rank(self, server_name='showdown'):
-        params = {
-            'act' : 'ladderget',
-            'user' : self.id
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.request('get', ACTION_URL_BASE.format(server_name), params=params) as response:
-                result = await response.text()
-        return parse_socket_input(result)
-
-class Client(User):
-    def __init__(self, name='', password=None, server_name='showdown', server_hostname=None):
+class Client(user.User):
+    def __init__(self, name='', password=None, autologin=True, server_name='showdown', server_hostname=None):
         super().__init__(name)
         self.init_time = time.time()
         self.on_init() # Subclasses can override to do stuff on init
@@ -80,19 +57,17 @@ class Client(User):
                 # TODO: More specific exception here
                 raise Exception('Unrecognized server name: "{}". Please specify a `server_hostname'.format(server_name))
             server_hostname = server_map[server_name]
+        self.server_name = server_name
+        self.server_hostname = server_hostname
 
         # URL setup
         self.action_url = ACTION_URL_BASE.format(server_name)
-        self.websocket_url = WEBSOCKET_URL_BASE.format(
-            server_hostname = server_hostname,
-            num_triplet     = generate_ws_triplet(),
-            char_octet      = generate_ws_octet())
+        self.websocket_url = generate_ws_url(server_hostname)
         logger.debug('Using showdown action url at  {}'.format(self.action_url))
         logger.debug('Using showdown websocket at {}'.format(self.websocket_url))
 
         # Store client params
-        self.server_name = server_name
-        self.server_hostname = server_hostname
+        self.autologin = autologin
         self.password = password
         self.challengekeyid, self.challstr = None, None
         self.output_queue = asyncio.Queue()
@@ -100,13 +75,6 @@ class Client(User):
         # Start event loop
         self.loop = asyncio.get_event_loop()
         self.loop.run_until_complete(self.handler())
-
-
-    def set_password(self, password):
-        self.password = password
-
-    def set_name(self, name):
-        self.name = name
 
     async def set_avatar(self, avatar_id):
         await self.add_output('|/avatar {}'.format(avatar_id))
@@ -125,7 +93,7 @@ class Client(User):
 
         logger.info('Logging in as {}'.format(self.name))
         result = requests.post(self.action_url, data = data)
-        result_data = parse_socket_input(result.text)
+        result_data = parse_http_input(result.text)
         assertion_data = result_data['assertion']
         await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, assertion_data))
         await self.on_login()
@@ -141,7 +109,11 @@ class Client(User):
         await self.upload_team(team_str)
         await self.add_output('|/search {}'.format(tier))
 
+    async def cancel_search(self):
+        await self.add_output('|/cancelsearch')
+
     async def private_message(self, user, content):
+        content = str(content)[:300]
         await self.add_output('|/msg {}, {}'.format(user.name, content))
 
     async def forfeit(self, battle):
@@ -154,6 +126,7 @@ class Client(User):
         await self.add_output('|/join {}'.format(room))
 
     async def say(self, msg, room=''):
+        msg = str(msg)[:300]
         await self.add_output('{}|{}'.format(room, msg))
 
     async def add_output(self, out):
@@ -188,59 +161,6 @@ class Client(User):
 
 
     @on_interval()
-    async def receiver(self):
-        inp = await self.websocket.recv()
-        if inp == 'o':
-            await self.on_connect()
-            return
-        inps = parse_socket_input(inp)
-        for room_id, inp in inps:
-            if room_id == None:
-                logger.warn('NULL room_id. Input of `{}`'.format(inp))
-            tokens = inp.strip().split('|')
-            if len(tokens) == 1:
-                inp_type = 'raw_text'
-                params = tokens
-            else:
-                inp_type = tokens[1].lower()
-                params = tokens[2:]
-            logger.debug('<<< Received:\n{}'.format(inp))
-
-            #Thoughts: clean this up somehow?
-            if inp_type == 'challstr':
-                self.challengekeyid, self.challstr = params
-                await self.on_challstr()
-            elif inp_type == 'j':
-                await self.on_join(events.Join(room_id, *params))
-            elif inp_type == 'l':
-                await self.on_leave(events.Leave(room_id, *params))
-            elif inp_type == 'raw':
-                await self.on_raw(events.RawHTML(room_id, *params))
-            elif inp_type == 'uhtml':
-                await self.on_uhtml(events.UHTML(room_id, *params))
-            elif inp_type == 'init':
-                await self.on_room_init(events.RoomInit(room_id, *params))
-            elif inp_type == 'updateuser':
-                await self.on_updateuser(events.UpdateUser(*params))
-            elif inp_type == 'updatesearch':
-                await self.on_updatesearch(events.UpdateSearch(*params))
-            elif inp_type == 'updatechallenges':
-                await self.on_updatechallenges(events.UpdateChallenges(*params))
-            elif inp_type == 'c' or inp_type == 'c:':
-                await self.on_chat_message(events.ChatMessage(room_id, inp_type, *params))
-            elif inp_type == 'pm':
-                await self.on_private_message(events.PrivateMessage(*params))
-            elif inp_type == 'n':
-                await self.on_name_change(events.NameChange(*params))
-            elif inp_type == 'queryresponse':
-                if params[0] == 'userdetails':
-                    await self.on_user_details(events.UserDetails(params[1]))
-                else:
-                    logger.warn('Unhandled case: {}, {}'.format(room_id, inp))
-            else:
-                logger.warn('Unhandled case: {}, {}'.format(room_id, inp))
-
-    @on_interval()
     async def sender(self):
         out = await self.output_queue.get()
         out = [out] if type(out) is str else out
@@ -248,75 +168,113 @@ class Client(User):
         await self.websocket.send(json.dumps(out))
         await asyncio.sleep(len(out) * .5)
 
-    async def on_challstr(self):
-        logger.info('Received challstr')
+    @on_interval()
+    async def receiver(self):
+        socket_input = await self.websocket.recv()
+        logger.debug('<<< Received:\n{}'.format(socket_input))
+        if socket_input == 'o': #Showdown sends this response on first connection
+            logger.info('Connected on {}'.format(self.websocket_url))
+            await self.on_connect()
+            return
+        inputs = parse_socket_input(socket_input)
+        for room_id, inp in inputs:
+            logger.debug('Parsing:\n{}'.format(inp))
+            tokens = inp.strip().split('|')
 
-    async def on_user_details(self, user_details):
-        logger.info(user_details)
+            #Seperate input type and params
+            if len(tokens) == 1:
+                inp_type = 'rawtext'
+                params = tokens
+            else:
+                inp_type = tokens[1].lower()
+                params = tokens[2:]
 
-    async def on_name_change(self, name_change):
-        logger.info(name_change)
-
-    async def on_private_message(self, private_message):
-        logger.info(private_message)
-
-    async def on_chat_message(self, chat_message):
-        logger.info(chat_message)
-
-    async def on_updatechallenges(self, updatechallenges):
-        logger.info(updatechallenges)
-
-    async def on_updatesearch(self, updatesearch):
-        logger.info(updatesearch)
-
-    async def on_updateuser(self, updateuser):
-        logger.info(updateuser)
-
-    async def on_room_init(self, room_init):
-        logger.info(room_init)
-
-    async def on_uhtml(self, uhtml):
-        logger.info(uhtml)
-
-    async def on_raw(self, raw):
-        logger.info(raw)
-
-    async def on_leave(self, leave):
-        logger.info(leave)
-
-    async def on_join(self, join):
-        logger.info(join)
+            # Parse main types of input
+            if inp_type == 'challstr':
+                self.challengekeyid, self.challstr = params
+                logger.info('Received challstr {}'.format(params))
+                await self.on_challstr()
+                if self.name and self.password and self.autologin:
+                    await self.login()
+                elif self.autologin:
+                    logger.warn('Cannot login without username or password.')
+            elif inp_type == 'j':
+                user_join = user.UserJoin(room_id, *params, client=self)
+                logger.info(user_join)
+                await self.on_user_join(user_join)
+            elif inp_type == 'l':
+                user_leave = user.UserLeave(room_id, *params, client=self)
+                logger.info(user_leave)
+                await self.on_user_leave(user_leave)
+            elif inp_type == 'n':
+                name_change = user.UserNameChange(room_id, *params, client=self)
+                logger.info(name_change)
+                await self.on_user_name_change(name_change)
+            elif inp_type == 'queryresponse':
+                query_response = QueryResponse(*params)
+                logger.info(query_response)
+                await self.on_query_response(query_response)
+            elif inp_type == 'c:' or inp_type == 'c':
+                chat_message = message.ChatMessage(room_id, inp_type, *params, client=self)
+                logger.info(chat_message)
+                await self.on_chat_message(chat_message)
+            elif inp_type == 'pm':
+                private_message = message.PrivateMessage(*params, client=self)
+                logger.info(private_message)
+                await self.on_private_message(private_message)
+            elif inp_type == 'rawtext':
+                raw_text = message.RawText(room_id, *params)
+                logger.info(raw_text)
+                await self.on_raw_text(raw_text)
+            else:
+                logger.info('Unhandled case:\n'
+                            'room_id: {}\n'
+                            'inp_type: {}\n'
+                            'params: {}'.format(room_id, inp_type, params))
+            await self.post_parse(room_id, inp_type, params)
 
     async def on_connect(self):
-        logger.info('Connected to {}'.format(self.server_name))
+        pass
+
+    async def on_challstr(self):
+        pass
 
     async def on_login(self):
+        pass
+
+    async def on_user_name_change(self, name_change):
+        pass
+
+    async def on_user_leave(self, user_leave):
+        pass
+
+    async def on_user_join(self, user_join):
+        pass
+
+    async def on_query_response(self, query_response):
+        pass
+
+    async def on_chat_message(self, chat_message):
+        pass
+
+    async def on_private_message(self, private_message):
+        pass
+
+    async def on_raw_text(self, raw_text):
+        pass
+
+    async def post_parse(self, room_id, inp_type, params):
         pass
 
     def on_init(self):
         pass
 
-cleaner_re = re.compile('(\W|_)')
-def clean(input_str):
-    return cleaner_re.sub('', input_str.lower())
+class QueryResponse:
+    def __init__(self, qtype, data):
+        self.type = qtype
+        self.data = json.loads(data)
 
-def parse_socket_input(socket_input):
-    if socket_input.startswith(']'):
-        return json.loads(socket_input[1:])
-    elif socket_input.startswith('a'):
-        loaded = json.loads(socket_input[1:])
-        result = []
-        for row in loaded:
-            loaded = row.splitlines()
-            if loaded[0].startswith('>'):
-                room_id = loaded[0][1:]
-                raw_events = loaded[1:]
-            else:
-                room_id = None
-                raw_events = loaded
-            for event in raw_events:
-                result.append((room_id, event))
-        return result
-
-
-    raise Exception('Weird socket input: {}'.format(socket_input))
+    def __repr__(self):
+        return '<QueryResponse ({}) {}>'.format(
+            self.type,
+            abbreviate(str(self.data)))

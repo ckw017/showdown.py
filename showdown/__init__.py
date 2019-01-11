@@ -5,4 +5,5 @@ __author__  = 'chriskw'
 __license__ = 'MIT'
 __version__ = '0.0.1'
 
-from .client import User, Client
+from .client import Client
+from .user import User
