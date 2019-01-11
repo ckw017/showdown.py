@@ -1,6 +1,8 @@
 import json
 import re
 
+ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{}/action.php'
+
 def abbreviate(content):
     content_length = len(content)
     return content[:20].rstrip() + ('...' if content_length > 20 else '')
