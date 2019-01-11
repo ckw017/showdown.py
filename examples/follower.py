@@ -3,8 +3,8 @@ import logging
 from pprint import pprint
 
 logging.basicConfig(level=logging.INFO)
-with open('./tests/data/login.txt', 'rt') as f,\
-     open('./tests/data/owner.txt', 'rt') as o:
+with open('./examples/data/login.txt', 'rt') as f,\
+     open('./examples/data/owner.txt', 'rt') as o:
     username, password = f.read().splitlines()
     ownername = o.read()
 
@@ -21,14 +21,17 @@ class FollowerClient(showdown.Client):
                 return
             for room in rooms:
                 await self.join(room)
-        for room in self.rooms.values():
-            if type(room) is showdown.room.Battle:
-                print(room.winner)
-                print(room.loser)
-                print('\n'.join(room.logs))
+
+    async def on_chat_message(self, chat_message):
+        if chat_message.author == self.owner and chat_message.content=='.outputlogs':    
+            print('\n'.join(self.rooms[chat_message.room_id].logs))
+
+    async def on_private_message(self, pm):
+        if pm.recipient == self:
+            await pm.author.message(pm.author.register_time)
 
     @showdown.Client.on_interval(interval=3)
     async def get_owner_details(self): 
         await self.owner.request_user_details()
 
-FollowerClient(name=username, password=password).start()
+FollowerClient(name=username, password=password, server_id='azure').start()
