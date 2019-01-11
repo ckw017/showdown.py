@@ -8,6 +8,7 @@ import logging
 import traceback
 from . import utils
 from . import user, message, room
+from .server import Server
 from functools import wraps
 
 #Logging setup
@@ -15,23 +16,15 @@ logger = logging.getLogger(__name__)
 
 class Client(user.User):
     def __init__(self, name='', password=None, loop=None, max_room_logs=5000,
-                    server_name='showdown', server_hostname=None):
+                    server_id='showdown', server_host=None):
         super().__init__(name, client=self)
 
-        # Set server info
-        if not server_hostname:
-            if server_name not in utils.server_map:
-                # TODO: More specific exception here
-                raise Exception('Unrecognized server name: "{}". Please specify a `server_hostname'.format(server_name))
-            server_hostname = utils.server_map[server_name]
-        self.server_name = server_name
-        self.server_hostname = server_hostname
-
         # URL setup
-        self.action_url = utils.generate_action_url(server_name)
-        self.websocket_url = utils.generate_ws_url(server_hostname)
-        logger.debug('Using showdown action url at  {}'.format(self.action_url))
-        logger.debug('Using showdown websocket at {}'.format(self.websocket_url))
+        self.server = Server(id=server_id, host=server_host)
+        self.action_url = self.server.generate_action_url()
+        self.websocket_url = self.server.generate_ws_url()
+        logger.info('Using showdown action url at  {}'.format(self.action_url))
+        logger.info('Using showdown websocket at {}'.format(self.websocket_url))
 
         # Store client params
         self.password = password
@@ -96,11 +89,21 @@ class Client(user.User):
         await self.add_output('{}|/leave'.format(room))
 
     async def join(self, room):
+        room = utils.name_to_id(room)
         await self.add_output('|/join {}'.format(room))
 
     async def say(self, msg, room=''):
         msg = str(msg)[:300]
         await self.add_output('{}|{}'.format(room, msg))
+
+    async def query_rooms(self):
+        await self.add_output('|/cmd rooms')
+
+    async def query_battles(self, tier='', min_elo=None):
+        message = '|/cmd roomlist {}'.format(name_to_id(tier))
+        if min_elo is not None:
+            message += ', {}'.format(min_elo)
+        await self.add_output(message)
 
     async def add_output(self, out):
         await self.output_queue.put(out)
