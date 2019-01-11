@@ -20,8 +20,11 @@ class FollowerClient(showdown.Client):
                 return
             for room in rooms:
                 await self.join(room)
-        if 'lobby' in self.rooms:
-            pprint(self.rooms['lobby'].userlist)
+        for room in self.rooms.values():
+            if type(room) is showdown.room.Battle:
+                print(room.winner)
+                print(room.loser)
+                print('\n'.join(room.logs))
 
     @showdown.Client.on_interval(interval=3)
     async def get_owner_details(self): 
