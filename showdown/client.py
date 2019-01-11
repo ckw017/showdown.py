@@ -67,9 +67,9 @@ class Client(user.User):
         await self.upload_team(team_str)
         await self.add_output('|/vtm {}'.format(tier))
 
-    async def search_battles(self, team_str, tier):
+    async def search_battles(self, team_str, battle_format):
         await self.upload_team(team_str)
-        await self.add_output('|/search {}'.format(tier))
+        await self.add_output('|/search {}'.format(battle_format))
 
     async def cancel_search(self):
         await self.add_output('|/cancelsearch')
@@ -185,6 +185,10 @@ class Client(user.User):
                 await self.on_query_response(query_response)
                 if query_response.type == 'savereplay':
                     pass #TODO: upload replay stuff here
+            elif inp_type == 'formats':
+                self.server.set_formats(*params)
+            elif inp_type == 'customgroups':
+                self.server.set_custom_groups(*params)
             elif inp_type == 'c:' or inp_type == 'c':
                 chat_message = message.ChatMessage(room_id, inp_type, *params, client=self)
                 logger.info(chat_message)
@@ -195,7 +199,6 @@ class Client(user.User):
                 await self.on_private_message(private_message)
             elif inp_type == 'init':
                 room_type = params[0]
-                room_id = room_id or 'lobby'
                 if room_type == 'chat':
                     room_class = room.Room
                 elif room_type == 'battle':
@@ -215,7 +218,7 @@ class Client(user.User):
                 logger.info(raw_text)
                 await self.on_raw_text(raw_text)
             else:
-                logger.info('Unhandled case:\n'
+                logger.debug('Unhandled case:\n'
                             'room_id: {}\n'
                             'inp_type: {}\n'
                             'params: {}'.format(room_id, inp_type, params))
@@ -224,7 +227,6 @@ class Client(user.User):
             await self.on_receive(room_id, inp_type, params)
 
     async def update_rooms(self, room_id, inp):
-        room_id = room_id or 'lobby'
         if room_id in self.rooms:
             self.rooms[room_id].add_content(inp)
 
