@@ -1,12 +1,9 @@
 import json
 import re
 import requests
-from .utils import parse_http_input
+from .utils import parse_http_input, name_to_id
 
 ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{}/action.php'
-
-def name_to_id(input_str):
-    return re.sub(r'(\W|_)', '', input_str.lower()).strip()
 
 class User:
     def __init__(self, name, client=None):

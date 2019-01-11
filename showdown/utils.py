@@ -1,9 +1,22 @@
 import json
+import re
 
 def abbreviate(content):
     content_length = len(content)
     return content[:20].rstrip() + ('...' if content_length > 20 else '')
 
+def parse_text_input(text_input):
+    tokens = text_input.strip().split('|')
+    if len(tokens) == 1:
+        inp_type = 'rawtext'
+        params = tokens
+    else:
+        inp_type = tokens[1].lower()
+        params = tokens[2:]
+    return inp_type, params
+
+def name_to_id(input_str):
+    return re.sub(r'(\W|_)', '', input_str.lower()).strip()
 
 def parse_http_input(http_input):
     if http_input.startswith(']'):

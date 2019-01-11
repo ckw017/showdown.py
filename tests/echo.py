@@ -2,15 +2,14 @@ import showdown
 import logging
 
 logging.basicConfig(level=logging.INFO)
-with open('./tests/login.txt', 'rt') as f:
+with open('./tests/data/login.txt', 'rt') as f:
     username, password = f.read().splitlines()
 
 
 class EchoClient(showdown.Client):
     async def on_login(self):
         await self.join('monotype')
-        owner = showdown.User('Argus2Spooky', client=self)
-        await owner.request_user_details()
+        await self.set_avatar('caitlin')
 
     async def on_query_response(self, query_response):
         print(query_response.data)

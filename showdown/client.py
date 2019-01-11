@@ -1,8 +1,6 @@
 import asyncio
-import aiohttp
 import requests
 import websockets
-import sys
 import pprint
 import json
 import time
@@ -12,8 +10,8 @@ import time
 import traceback
 import random
 import string
-from .utils import abbreviate, parse_http_input, parse_socket_input
-from . import events, user, message
+from .utils import *
+from . import user, message, room
 from functools import wraps
 
 #Logging setup
@@ -46,7 +44,8 @@ def generate_ws_url(server_hostname):
             char_octet      = generate_ws_octet())
 
 class Client(user.User):
-    def __init__(self, name='', password=None, autologin=True, server_name='showdown', server_hostname=None):
+    def __init__(self, name='', password=None, autologin=True, max_room_logs=1000,
+                    server_name='showdown', server_hostname=None):
         super().__init__(name)
         self.init_time = time.time()
         self.on_init() # Subclasses can override to do stuff on init
@@ -71,6 +70,8 @@ class Client(user.User):
         self.password = password
         self.challengekeyid, self.challstr = None, None
         self.output_queue = asyncio.Queue()
+        self.rooms = {}
+        self.max_room_logs = max_room_logs
 
         # Start event loop
         self.loop = asyncio.get_event_loop()
@@ -179,15 +180,7 @@ class Client(user.User):
         inputs = parse_socket_input(socket_input)
         for room_id, inp in inputs:
             logger.debug('Parsing:\n{}'.format(inp))
-            tokens = inp.strip().split('|')
-
-            #Seperate input type and params
-            if len(tokens) == 1:
-                inp_type = 'rawtext'
-                params = tokens
-            else:
-                inp_type = tokens[1].lower()
-                params = tokens[2:]
+            inp_type, params = parse_text_input(inp)
 
             # Parse main types of input
             if inp_type == 'challstr':
@@ -222,6 +215,16 @@ class Client(user.User):
                 private_message = message.PrivateMessage(*params, client=self)
                 logger.info(private_message)
                 await self.on_private_message(private_message)
+            elif inp_type == 'init':
+                room_type = params[0]
+                room_id = room_id or 'lobby'
+                if room_type == 'chat':
+                    self.rooms[room_id] = room.Room(room_id, client=self, max_logs=self.max_room_logs)
+                else:
+                    pass
+            elif inp_type == 'deinit':
+                if room_id in self.rooms:
+                    del self.rooms[room_id]
             elif inp_type == 'rawtext':
                 raw_text = message.RawText(room_id, *params)
                 logger.info(raw_text)
@@ -231,7 +234,14 @@ class Client(user.User):
                             'room_id: {}\n'
                             'inp_type: {}\n'
                             'params: {}'.format(room_id, inp_type, params))
+
+            await self.update_rooms(room_id, inp)
             await self.post_parse(room_id, inp_type, params)
+
+    async def update_rooms(self, room_id, inp):
+        room_id = room_id or 'lobby'
+        if room_id in self.rooms:
+            self.rooms[room_id].add_content(inp)
 
     async def on_connect(self):
         pass

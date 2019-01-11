@@ -1,4 +1,2 @@
-websockets
-requests
-asyncio
 aiohttp
+websockets
