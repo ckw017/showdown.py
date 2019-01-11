@@ -1,12 +1,17 @@
 import json
 import re
 import requests
-from .utils import parse_http_input, name_to_id
-
-ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{}/action.php'
+import string
+from .utils import *
 
 class User:
-    def __init__(self, name, client=None):
+    def __init__(self, user_str, client=None):
+        if user_str[0].lower() not in string.ascii_lowercase:
+            self.auth = user_str[0]
+            name = user_str[1:]
+        else:
+            self.auth = ' '
+            name = user_str
         self.set_name(name)
         self.id = name_to_id(name)
         self.client = client
@@ -15,7 +20,7 @@ class User:
         self.name = name
         self.id = name_to_id(name)
 
-    def name_matches(username):
+    def name_matches(self, username):
         return self.id == name_to_id(username)
 
     def __eq__(self, other):
@@ -27,7 +32,10 @@ class User:
         return not (self == other)
 
     def __repr__(self):
-        return '<User {}>'.format(self.name)
+        return '<User {}>'.format(str(self))
+
+    def __str__(self):
+        return '{}{}'.format(self.auth.strip(), self.name)
 
     async def message(self, content):
         if self.client:
@@ -54,16 +62,19 @@ class User:
         result = requests.get(ACTION_URL_BASE.format(server_name), params=params).text
         return parse_http_input(result)
 
+class Player(User):
+    def __init__(self, user_str, client=None):
+        pass
+
 #Base class for UserJoin/UserLeave
 class _UserMove:
     def __init__(self, room_id, user_str, client=None):
-        self.auth = user_str[0]
-        self.user = User(user_str[1:], client=client)
+        self.user = User(user_str)
         self.room_id = room_id or 'lobby'
 
     def __repr__(self):
-        return '<{} ({}) {}{}>'.format(self.__class__.__name__, \
-               self.room_id, self.auth.strip(), self.user.name)
+        return '<{} ({}) {}>'.format(self.__class__.__name__, \
+               self.room_id, str(self.user))
 
 class UserJoin(_UserMove):
     pass
@@ -74,13 +85,11 @@ class UserLeave(_UserMove):
 class UserNameChange:
     def __init__(self, room_id, new_user_str, old_id, client=None):
         self.room_id = room_id
-        self.new_user = User(new_user_str[1:], client)
-        self.new_auth = new_user_str[0].strip()
+        self.new_user = User(new_user_str, client=client)
         self.old_id = old_id
 
     def __repr__(self):
-        return '<NameChange ({}) {}->{}{}>'.format(
+        return '<NameChange ({}) {}->{}>'.format(
             self.room_id,
             self.old_id, 
-            self.new_auth, 
-            self.new_user.name)
+            str(self.new_user))
