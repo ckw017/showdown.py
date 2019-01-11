@@ -1,17 +1,17 @@
-from queue import Queue
+from collections import deque
 from .utils import parse_text_input, name_to_id
-from .user import UserLeave, UserJoin, UserNameChange, User
+from .user import UserLeave, UserJoin, UserNameChange, User, Player
 
 class Room:
-    def __init__(self, room_id, client=None, max_logs=1000):
+    def __init__(self, room_id, client=None, max_logs=5000):
         self.id = room_id
-        self.logs = Queue(maxsize=max_logs)
+        self.logs = deque(maxlen=max_logs)
         self.userlist = {}
         self.client = client
         self.title = None
 
     def add_content(self, content):
-        self.logs.put(content)
+        self.logs.append(content)
         inp_type, params = parse_text_input(content)
         self.update(inp_type, params)
 
@@ -21,25 +21,22 @@ class Room:
         if inp_type == 'users':
             user_strs = params[0].split(',')[1:]
             for user_str in user_strs:
-                u = User(user_str[1:])
-                self.userlist[u.id] = (user_str[0], u)
+                user = User(user_str)
+                self.userlist[user.id] = user
         elif inp_type == 'n':
-            name_change = UserNameChange(self.id, *params, client=self.client)
-            old_id = name_change.old_id
+            user_str, old_id = params
             if old_id in self.userlist:
                 del self.userlist[old_id]
-            user = name_change.new_user
-            self.userlist[user.id] = (name_change.new_auth, user)
+            user = User(user_str, client=self.client)
+            self.userlist[user.id] = user
         elif inp_type == 'l':
-            user_leave = UserLeave(self.id, *params, client=self.client)
-            user = user_leave.user
-            if user.id in self.userlist:
-                del self.userlist[user.id]
+            user_id = name_to_id(params[0])
+            if user_id in self.userlist:
+                del self.userlist[user_id]
         elif inp_type == 'j':
             user_str = params[0]
-            user_auth, user_name = user_str[0], user_str[1:]
-            user = User(user_name, client=self.client)
-            self.userlist[user.id] = (user_auth, user)
+            user = User(user_str, client=self.client)
+            self.userlist[user.id] = user
 
     async def request_auth(self):
         if self.client:
@@ -52,3 +49,51 @@ class Room:
             self.client.say(self.id, content)
         else:
             raise Exception('A client is needed to perform this action')
+
+    def __repr__(self):
+        return '<{} {}>'.format(self.__class__.__name__, self.title)
+
+class Battle(Room):
+    def __init__(self, room_id, client=None, max_logs=5000):
+        Room.__init__(self, room_id, client=client, max_logs=max_logs)
+        self.rules = []
+        self.players = {
+            'p1': None,
+            'p2': None
+        }
+        self.rated = False
+        self.tier = None
+        self.winner, self.loser = None, None
+        self.winner_id, self.loser_id = None, None
+
+    def update(self, inp_type, params):
+        Room.update(self, inp_type, params)
+        if inp_type == 'player':
+            player_id, name = params[0], params[1]
+            self.players[player_id] = User(name)
+        elif inp_type == 'rated':
+            self.rated = True
+        elif inp_type == 'tier':
+            self.tier = name_to_id(params[0])
+        elif inp_type == 'rule':
+            self.rules.append(params[0])
+        elif inp_type == 'win':
+            winner_name = params[0]
+            if self.players['p1'].name_matches(winner_name):
+                self.winner = self.players['p1']
+                self.winner_id = 'p1'
+                self.loser = self.players['p2']
+                self.loser_id = 'p2'
+            elif self.players['p2'].name_matches(winner_name):
+                self.winner = self.players['p2']
+                self.winner_id = 'p2'
+                self.loser = self.players['p1']
+                self.loser_id = 'p1'
+
+    async def savereplay(self):
+        if self.client:
+            await self.client.savereplay(self.id)
+        else:
+            raise Exception('A client is needed to perform this action')
+
+

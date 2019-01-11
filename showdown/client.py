@@ -44,7 +44,7 @@ def generate_ws_url(server_hostname):
             char_octet      = generate_ws_octet())
 
 class Client(user.User):
-    def __init__(self, name='', password=None, autologin=True, max_room_logs=1000,
+    def __init__(self, name='', password=None, autologin=True, max_room_logs=5000,
                     server_name='showdown', server_hostname=None):
         super().__init__(name)
         self.init_time = time.time()
@@ -112,6 +112,10 @@ class Client(user.User):
 
     async def cancel_search(self):
         await self.add_output('|/cancelsearch')
+
+    async def save_replay(self, battle_id):
+        assert battle_id.startswith('battle-')
+        await self.add_output('{}|/savereplay'.format(battle_id))
 
     async def private_message(self, user, content):
         content = str(content)[:300]
@@ -207,6 +211,8 @@ class Client(user.User):
                 query_response = QueryResponse(*params)
                 logger.info(query_response)
                 await self.on_query_response(query_response)
+                if query_response.type == 'savereplay':
+                    pass #TODO: upload replay stuff here
             elif inp_type == 'c:' or inp_type == 'c':
                 chat_message = message.ChatMessage(room_id, inp_type, *params, client=self)
                 logger.info(chat_message)
@@ -219,9 +225,10 @@ class Client(user.User):
                 room_type = params[0]
                 room_id = room_id or 'lobby'
                 if room_type == 'chat':
-                    self.rooms[room_id] = room.Room(room_id, client=self, max_logs=self.max_room_logs)
-                else:
-                    pass
+                    room_class = room.Room
+                elif room_type == 'battle':
+                    room_class = room.Battle
+                self.rooms[room_id] = room_class(room_id, client=self, max_logs=self.max_room_logs)
             elif inp_type == 'deinit':
                 if room_id in self.rooms:
                     del self.rooms[room_id]
