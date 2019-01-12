@@ -4,6 +4,8 @@ import requests
 import string
 from .utils import *
 
+USER_DATA_BASE = 'https://pokemonshowdown.com/users/{user_id}.json'
+
 class User:
     def __init__(self, user_str, client=None):
         if user_str[0].lower() not in string.ascii_lowercase:
@@ -15,6 +17,7 @@ class User:
         self.set_name(name)
         self.id = name_to_id(name)
         self.client = client
+        self._user_data = None
 
     def __eq__(self, other):
         return isinstance(other, User) and self.id == other.id
@@ -26,7 +29,7 @@ class User:
         return hash(self.id)
 
     def __repr__(self):
-        return '<User {}>'.format(str(self))
+        return '<{} `{}`>'.format(self.__class__.__name__, str(self))
 
     def __str__(self):
         return '{}{}'.format(self.auth.strip(), self.name)    
@@ -38,19 +41,37 @@ class User:
     def name_matches(self, username):
         return self.id == name_to_id(username)
 
+    @require_client
     async def message(self, content):
-        if self.client:
-            await self.client.private_message(self, content)
-        else:
-            raise Exception("A client is needed to use this method.")
+        await self.client.private_message(self, content)
 
+    @require_client
     async def request_user_details(self):
-        if self.client:
-            await self.client.add_output('|/cmd userdetails {}'.format(self.id))
-        else:
-            raise Exception("A client is needed to use this method.")
+        await self.client.add_output('|/cmd userdetails {}'.format(self.id))
 
-    async def get_rank(self, server_name=None):
+    def _get_user_data(self, force_update=False):
+        if not force_update and self._user_data is not None:
+            return
+        response = requests.get(USER_DATA_BASE.format(user_id = self.id))
+        if response.ok:
+            self._user_data = response.json()
+
+    @property
+    def ratings(self):
+        self._get_user_data(force_update=True)
+        return self._user_data['ratings']
+
+    @property
+    def register_time(self):
+        self._get_user_data()
+        return self._user_data['registertime']
+
+    @property
+    def register_name(self):
+        self._get_user_data()
+        return self._user_data['username']
+
+    def ladder_get(self, server_name=None):
         params = {
             'act' : 'ladderget',
             'user' : self.id
@@ -62,30 +83,3 @@ class User:
                 server_name = 'showdown'
         result = requests.get(ACTION_URL_BASE.format(server_name), params=params).text
         return parse_http_input(result)
-
-class _UserMove:
-    def __init__(self, room_id, user_str, client=None):
-        self.user = User(user_str)
-        self.room_id = room_id or 'lobby'
-
-    def __repr__(self):
-        return '<{} ({}) {}>'.format(self.__class__.__name__, \
-               self.room_id, str(self.user))
-
-class UserJoin(_UserMove):
-    pass
-
-class UserLeave(_UserMove):
-    pass
-
-class UserNameChange:
-    def __init__(self, room_id, new_user_str, old_id, client=None):
-        self.room_id = room_id
-        self.new_user = User(new_user_str, client=client)
-        self.old_id = old_id
-
-    def __repr__(self):
-        return '<NameChange ({}) {}->{}>'.format(
-            self.room_id,
-            self.old_id, 
-            str(self.new_user))

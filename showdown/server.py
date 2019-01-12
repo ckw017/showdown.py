@@ -27,11 +27,11 @@ def get_host(server_id):
         traceback.print_exc()
         raise ValueError('Malformed server_info data at `{}`.'.format(info_url))
 
-def generate_ws_triplet():
+def _generate_ws_triplet():
     num = random.randint(0, 999)
     return str(num).zfill(3)
 
-def generate_ws_octet():
+def _generate_ws_octet():
     octet = ''
     for _ in range(8):
         octet += random.choice(string.ascii_lowercase)
@@ -40,8 +40,8 @@ def generate_ws_octet():
 def generate_ws_url(server_hostname):
     return WEBSOCKET_URL_BASE.format(
             server_hostname = server_hostname,
-            num_triplet     = generate_ws_triplet(),
-            char_octet      = generate_ws_octet())
+            num_triplet     = _generate_ws_triplet(),
+            char_octet      = _generate_ws_octet())
 
 def generate_action_url(server_id):
     return ACTION_URL_BASE.format(server_id = server_id)

@@ -1,6 +1,6 @@
 from collections import deque
-from .utils import parse_text_input, name_to_id, abbreviate
-from .user import UserLeave, UserJoin, UserNameChange, User
+from .utils import *
+from .user import User
 
 class Room:
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -13,9 +13,9 @@ class Room:
     def add_content(self, content):
         self.logs.append(content)
         inp_type, params = parse_text_input(content)
-        self.update(inp_type, params)
+        self.update(inp_type, *params)
 
-    def update(self, inp_type, params):
+    def update(self, inp_type, *params):
         if inp_type == 'title':
             self.title = params[0]
         if inp_type == 'users':
@@ -46,21 +46,17 @@ class Room:
 
     def __hash__(self):
         return hash(self.id)
-
-    async def request_auth(self):
-        if self.client:
-            self.client.add_output('{}|/roomauth'.format(self.id))
-        else:
-            raise Exception('A client is needed to perform this action')
-
-    async def say(self, content):
-        if self.client:
-            self.client.say(self.id, content)
-        else:
-            raise Exception('A client is needed to perform this action')
-
+    
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__, self.title)
+
+    @require_client
+    async def request_auth(self):
+        await self.client.add_output('{}|/roomauth'.format(self.id))
+
+    @require_client
+    async def say(self, content):
+        await self.client.say(self.id, content)
 
 class Battle(Room):
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -99,11 +95,9 @@ class Battle(Room):
                 self.loser = self.players['p1']
                 self.loser_id = 'p1'
 
+    @require_client
     async def savereplay(self):
-        if self.client:
-            await self.client.savereplay(self.id)
-        else:
-            raise Exception('A client is needed to perform this action')
+        await self.client.savereplay(self.id)
 
 class Tournament:
     pass
