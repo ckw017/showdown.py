@@ -42,8 +42,8 @@ class User:
         return self.id == utils.name_to_id(username)
 
     @utils.require_client
-    async def message(self, content, client=None):
-        await self.client.private_message(self, content)
+    async def send_message(self, content, client=None):
+        await client.private_message(self.id, content)
 
     @utils.require_client
     async def request_user_details(self, client=None):

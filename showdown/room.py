@@ -1,6 +1,5 @@
 from collections import deque
-from .user import User
-from . import utils
+from . import utils, user
 
 class Room:
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -27,28 +26,39 @@ class Room:
         inp_type, params = utils.parse_text_input(content)
         self.update(inp_type, *params)
 
+    def add_user(self, user_str):
+        new_user = user.User(user_str, client=self.client)
+        self.userlist[new_user.id] = new_user
+
+    def remove_user(self, user_id):
+        self.userlist.pop(user_id, None)
+
     def update(self, inp_type, *params):
+        #Title set
         if inp_type == 'title':
             self.title = params[0]
+
+        #Userlist init
         if inp_type == 'users':
             user_strs = params[0].split(',')[1:]
             for user_str in user_strs:
-                user = User(user_str)
-                self.userlist[user.id] = user
+                self.add_user(user_str)
+
+        #User name change
         elif inp_type == 'n':
             user_str, old_id = params
-            if old_id in self.userlist:
-                del self.userlist[old_id]
-            user = User(user_str, client=self.client)
-            self.userlist[user.id] = user
+            self.remove_user(old_id)
+            self.add_user(user_str)
+
+        #User leave
         elif inp_type == 'l':
             user_id = utils.name_to_id(params[0])
-            if user_id in self.userlist:
-                del self.userlist[user_id]
+            self.remove_user(user_id)
+
+        #User join
         elif inp_type == 'j':
             user_str = params[0]
-            user = User(user_str, client=self.client)
-            self.userlist[user.id] = user
+            self.add_user(user_str)
 
     @utils.require_client
     async def request_auth(self, client=None):
@@ -80,11 +90,11 @@ class Battle(Room):
         self.winner, self.loser = None, None
         self.winner_id, self.loser_id = None, None
 
-    def update(self, inp_type, params): #TODO: Fix this up
-        Room.update(self, inp_type, params)
+    def update(self, inp_type, *params): #TODO: Fix this up
+        Room.update(self, inp_type, *params)
         if inp_type == 'player':
             player_id, name = params[0], params[1]
-            self.players[player_id] = User(name)
+            self.players[player_id] = user.User(name, client=self.client)
         elif inp_type == 'rated':
             self.rated = True
         elif inp_type == 'tier':
@@ -106,12 +116,32 @@ class Battle(Room):
             self.ended = True
 
     @utils.require_client
+    async def save_replay(self, client=None):
+        await client.save_replay(self.id)
+        
+    @utils.require_client
     async def forfeit(self, client=None):
         await client.forfeit(self.battle_id)
 
     @utils.require_client
-    async def save_replay(self, client=None):
-        await client.save_replay(self.id)
+    async def set_timer_on(self, client=None):
+        pass
+
+    @utils.require_client
+    async def set_timer_off(self, client=None):
+        pass
+
+    @utils.require_client
+    async def switch(self, client=None)
+        pass #["battle-gen7randombattle-847809604|/choose switch 5|68"]
+
+    @utils.require_client
+    async def move(self, client=None)
+        pass
+
+    @utils.require_client
+    async def undo(self, client=None)
+        pass
 
 class_map = {
     'chat': Room,

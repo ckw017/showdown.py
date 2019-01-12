@@ -3,22 +3,26 @@ import re
 import random
 import string
 import inspect
+import warnings
 from functools import wraps
 
 def require_client(func): #TODO give these methods a keyword arg for a client
     @wraps(func)
-    async def async_inner(self, *args, **kwargs):
+    async def wrapper(self, *args, **kwargs):
         client = kwargs.get('client', None) or getattr(self, 'client', None) 
         if client is None:
-            raise Exception('{0} object does not have a client -- this function will do '
-                            'nothing. To set a client, initialize the object with '
-                            '{0}(..., client=your_client). Alternatively, you can '
-                            'use the client keyword argument in the method.'
-                                .format(self.__class__.__name__))
+            msg = ('{0} object does not have a client -- this function will do '
+                   'nothing. To set a client, initialize the object with '
+                   '{0}(..., client=your_client). Alternatively, you can '
+                   'use the client keyword argument in the method.'
+                   .format(self.__class__.__name__))
+            raise Exception(msg)
         else:
+            print(kwargs)
+            print(args)
             kwargs['client'] = client
             return await func(self, *args, **kwargs)
-    return async_inner
+    return wrapper
 
 def clean_message_content(content):
     content = str(content)

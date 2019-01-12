@@ -65,7 +65,7 @@ class Client(user.User):
     async def sender(self):
         out = await self.output_queue.get()
         out = [out] if type(out) is str else out
-        logger.debug('>>> Sending:\n{}'.format(out))
+        logger.info('>>> Sending:\n{}'.format(out))
         await self.websocket.send(json.dumps(out))
         await asyncio.sleep(len(out) * .5)
 
@@ -174,12 +174,10 @@ class Client(user.User):
         await self.add_output('|/cancelsearch')
 
     #Rooms
-    async def leave(self, room_name):
-        room_id = utils.name_to_id(room_name)
+    async def leave(self, room_id):
         await self.add_output('{}|/leave'.format(room_id))
 
-    async def join(self, room_name):
-        room_id = utils.name_to_id(room_name)
+    async def join(self, room_id):
         await self.add_output('|/join {}'.format(room_id))
 
     #Battles
