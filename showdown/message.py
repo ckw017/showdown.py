@@ -44,13 +44,3 @@ class PrivateMessage:
     @require_client
     async def reply(self, message):
         await self.client.private_message(self.author.id, message)
-
-class RawText:
-    def __init__(self, room_id, content):
-        self.room_id = room_id
-        self.content = content
-
-    def __repr__(self):
-        return '<RawText ({}) {}>'.format(
-            self.room_id,
-            abbreviate(self.content))

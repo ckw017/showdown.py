@@ -51,8 +51,6 @@ class Server:
         self.id = id
         self.host = host or get_host(self.id)
         self.client = client
-        self.rooms = None
-        self.formats = None
 
     def __repr__(self):
         return '<Server id={} host={}>'.format(\
@@ -65,46 +63,5 @@ class Server:
     def generate_action_url(self):
         return generate_action_url(self.id)
 
-    def set_custom_groups(self, *group_data):
-        pass
-
-    def set_formats(self, *format_data):
-        self.formats = {}
-        curr_category, curr_priority = None, '6'
-        for token in format_data:
-            if ',' not in token:
-                curr_category = FormatCategory(token, curr_priority)
-                continue
-            format_name, format_type = token.split(',')
-            if format_name:
-                battle_format = BattleFormat(
-                        format_name, 
-                        curr_category, 
-                        format_type, 
-                        client=self.client
-                )
-                self.formats[battle_format.id] = battle_format
-            else:
-                curr_priority = format_type
-
     async def request_rooms(self):
         await self.client.request_rooms()
-
-class FormatCategory:
-    def __init__(self, name, priority):
-        self.name = name
-        self.priority = priority
-
-class BattleFormat:
-    def __init__(self, name, category, format_type, client=None):
-        self.name = name
-        self.id = utils.name_to_id(name)
-        self.type = format_type
-        self.client = client
-
-    def __repr__(self):
-        return '<BattleFormat {},{}>'.format(self.name, self.type)
-
-    def search(self, team_str):
-        if self.client:
-            self.client.search_battles(team_str, self.id)

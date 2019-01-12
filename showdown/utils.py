@@ -16,7 +16,6 @@ def require_client(func):
             return await func(self, *args, **kwargs)
     return async_inner
 
-
 def clean_message_content(content):
     content = str(content)
     if len(content) > 300:
@@ -31,7 +30,6 @@ def abbreviate(content):
 
 def name_to_id(input_str):
     return re.sub(r'(\W|_)', '', input_str.lower()).strip()
-
 
 #Parsing
 def parse_text_input(text_input):

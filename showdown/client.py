@@ -108,12 +108,6 @@ class Client(user.User):
                 if response_type == 'savereplay':
                     pass #TODO: upload replay stuff here
 
-            #Server updates
-            elif inp_type == 'formats':
-                self.server.set_formats(*params)
-            elif inp_type == 'customgroups':
-                self.server.set_custom_groups(*params)
-
             #Messages
             elif inp_type == 'c:' or inp_type == 'c':
                 chat_message = message.ChatMessage(room_id, inp_type, *params, client=self)
@@ -125,11 +119,8 @@ class Client(user.User):
             #Rooms
             elif inp_type == 'init':
                 room_type = params[0]
-                if room_type == 'chat':
-                    room_class = room.Room
-                elif room_type == 'battle':
-                    room_class = room.Battle
-                room_obj = room_class(room_id, client=self, max_logs=self.max_room_logs)
+                room_obj = room.class_map.get(room_type, room.Room)(
+                    room_id, client=self, max_logs=self.max_room_logs)
                 self.rooms[room_id] = room_obj
                 await self.on_room_init(room_obj)
             elif inp_type == 'deinit':
@@ -171,12 +162,12 @@ class Client(user.User):
         await self.add_output('|/utm {}'.format(team_str))
 
     async def validate_team(self, team_str, battle_format):
-        battle_format = name_to_id(battle_format)
+        battle_format = utils.name_to_id(battle_format)
         await self.upload_team(team_str)
         await self.add_output('|/vtm {}'.format(battle_format))
 
     async def search_battles(self, team_str, battle_format):
-        battle_format = name_to_id(battle_format)
+        battle_format = utils.name_to_id(battle_format)
         await self.upload_team(team_str)
         await self.add_output('|/search {}'.format(battle_format))
 
@@ -185,11 +176,11 @@ class Client(user.User):
 
     #Rooms
     async def leave(self, room_name):
-        room_id = name_to_id(room_name)
+        room_id = utils.name_to_id(room_name)
         await self.add_output('{}|/leave'.format(room_id))
 
     async def join(self, room_name):
-        room_id = name_to_id(room_name)
+        room_id = utils.name_to_id(room_name)
         await self.add_output('|/join {}'.format(room_id))
 
     #Battles
@@ -208,7 +199,7 @@ class Client(user.User):
 
     async def say(self, room_name, content):
         content = utils.clean_message_content(content)
-        room_id = name_to_id(room_name)
+        room_id = utils.name_to_id(room_name)
         if room_id == 'lobby':
             room_id = ''
         await self.add_output('{}|{}'.format(room_id, content))
@@ -218,7 +209,7 @@ class Client(user.User):
         await self.add_output('|/cmd rooms')
 
     async def query_battles(self, tier='', min_elo=None):
-        message = '|/cmd roomlist {}'.format(name_to_id(tier))
+        message = '|/cmd roomlist {}'.format(utils.name_to_id(tier))
         if min_elo is not None:
             message += ', {}'.format(min_elo)
         await self.add_output(message)

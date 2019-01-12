@@ -4,7 +4,7 @@ import requests
 import string
 from .utils import *
 
-USER_DATA_BASE = 'https://pokemonshowdown.com/users/{user_id}.json'
+USER_DATA_URL_BASE = 'https://pokemonshowdown.com/users/{user_id}.json'
 
 class User:
     def __init__(self, user_str, client=None):
@@ -52,7 +52,7 @@ class User:
     def _get_user_data(self, force_update=False):
         if not force_update and self._user_data is not None:
             return
-        response = requests.get(USER_DATA_BASE.format(user_id = self.id))
+        response = requests.get(USER_DATA_URL_BASE.format(user_id = self.id))
         if response.ok:
             self._user_data = response.json()
 
@@ -68,7 +68,7 @@ class User:
         self._get_user_data()
         return self._user_data['username']
 
-    def ladder_get(self, server_name=None):
+    def get_ladder(self, server_name=None):
         params = {
             'act' : 'ladderget',
             'user' : self.id

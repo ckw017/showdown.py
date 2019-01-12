@@ -10,6 +10,18 @@ class Room:
         self.client = client
         self.title = None
 
+    def __eq__(self, other):
+        return isinstance(other, Room) and self.id == other.id
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __repr__(self):
+        return '<{} {}>'.format(self.__class__.__name__, self.title)
+
     def add_content(self, content):
         self.logs.append(content)
         inp_type, params = parse_text_input(content)
@@ -38,18 +50,6 @@ class Room:
             user = User(user_str, client=self.client)
             self.userlist[user.id] = user
 
-    def __eq__(self, other):
-        return isinstance(other, Room) and self.id == other.id
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        return hash(self.id)
-    
-    def __repr__(self):
-        return '<{} {}>'.format(self.__class__.__name__, self.title)
-
     @require_client
     async def request_auth(self):
         await self.client.add_output('{}|/roomauth'.format(self.id))
@@ -67,11 +67,12 @@ class Battle(Room):
             'p2': None
         }
         self.rated = False
+        self.ended = False
         self.tier = None
         self.winner, self.loser = None, None
         self.winner_id, self.loser_id = None, None
 
-    def update(self, inp_type, params):
+    def update(self, inp_type, params): #TODO: Fix this up
         Room.update(self, inp_type, params)
         if inp_type == 'player':
             player_id, name = params[0], params[1]
@@ -94,22 +95,13 @@ class Battle(Room):
                 self.winner_id = 'p2'
                 self.loser = self.players['p1']
                 self.loser_id = 'p1'
+            self.ended = True
 
     @require_client
     async def savereplay(self):
         await self.client.savereplay(self.id)
 
-class Tournament:
-    pass
-
-class TourUpdate:
-    def __init__(self, room_id, *params):
-        self.room_id = room_id
-        self.type = params[0]
-        self.params = params[1:]
-
-    def __repr__(self):
-        return '<TourUpdate ({}) type={} params={}>'.format(\
-            self.room_id,
-            self.type,
-            abbreviate(self.params))
+class_map = {
+    'chat': Room,
+    'battle': Battle
+}
