@@ -14,7 +14,7 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 
 class Client(user.User):
-    def __init__(self, name='', password=None, loop=None, max_room_logs=5000,
+    def __init__(self, name='Guest', password=None, loop=None, max_room_logs=5000,
                     server_id='showdown', server_host=None):
         super().__init__(name, client=self)
 
@@ -95,7 +95,10 @@ class Client(user.User):
                 if self.name and self.password and self.autologin:
                     await self.login()
                 elif self.autologin:
-                    logger.warn('Cannot login without username and password.')
+                    msg = ("Cannot login without username and password. If "
+                           "you don't want your client to be logged in, "
+                           "you can use Client.start(autologin=False).")
+                    raise Exception(msg)
 
             #Process query response
             elif inp_type == 'queryresponse':

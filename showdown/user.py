@@ -56,18 +56,15 @@ class User:
         if response.ok:
             self._user_data = response.json()
 
-    @property
-    def ratings(self):
+    def get_ratings(self):
         self._get_user_data(force_update=True)
         return self._user_data['ratings']
 
-    @property
-    def register_time(self):
+    def get_register_time(self):
         self._get_user_data()
         return self._user_data['registertime']
 
-    @property
-    def register_name(self):
+    def get_register_name(self):
         self._get_user_data()
         return self._user_data['username']
 
