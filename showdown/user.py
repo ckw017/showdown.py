@@ -2,7 +2,7 @@ import json
 import re
 import requests
 import string
-from .utils import *
+from . import utils
 
 USER_DATA_URL_BASE = 'https://pokemonshowdown.com/users/{user_id}.json'
 
@@ -15,7 +15,7 @@ class User:
             self.auth = ' '
             name = user_str
         self.set_name(name)
-        self.id = name_to_id(name)
+        self.id = utils.name_to_id(name)
         self.client = client
         self._user_data = None
 
@@ -36,16 +36,16 @@ class User:
 
     def set_name(self, name):
         self.name = name
-        self.id = name_to_id(name)
+        self.id = utils.name_to_id(name)
 
     def name_matches(self, username):
-        return self.id == name_to_id(username)
+        return self.id == utils.name_to_id(username)
 
-    @require_client
+    @utils.require_client
     async def message(self, content, client=None):
         await self.client.private_message(self, content)
 
-    @require_client
+    @utils.require_client
     async def request_user_details(self, client=None):
         await self.client.add_output('|/cmd userdetails {}'.format(self.id))
 

@@ -6,8 +6,7 @@ import time
 import logging
 import traceback
 import warnings
-from . import utils, user, message, room
-from .server import Server
+from . import message, room, server, user, utils
 from functools import wraps
 
 #Logging setup
@@ -19,7 +18,7 @@ class Client(user.User):
         super().__init__(name, client=self)
 
         # URL setup
-        self.server = Server(id=server_id, host=server_host)
+        self.server = server.Server(id=server_id, host=server_host)
         self.action_url = self.server.generate_action_url()
         self.websocket_url = self.server.generate_ws_url()
         logger.info('Using action url at {}'.format(self.action_url))
@@ -208,10 +207,10 @@ class Client(user.User):
         await self.add_output('|/cmd rooms')
 
     async def query_battles(self, tier='', min_elo=None):
-        message = '|/cmd roomlist {}'.format(utils.name_to_id(tier))
+        output = '|/cmd roomlist {}'.format(utils.name_to_id(tier))
         if min_elo is not None:
-            message += ', {}'.format(min_elo)
-        await self.add_output(message)
+            output += ', {}'.format(min_elo)
+        await self.add_output(output)
 
     #Hooks
     async def on_connect(self):

@@ -1,6 +1,6 @@
 from collections import deque
-from .utils import *
 from .user import User
+from . import utils
 
 class Room:
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -24,7 +24,7 @@ class Room:
 
     def add_content(self, content):
         self.logs.append(content)
-        inp_type, params = parse_text_input(content)
+        inp_type, params = utils.parse_text_input(content)
         self.update(inp_type, *params)
 
     def update(self, inp_type, *params):
@@ -42,7 +42,7 @@ class Room:
             user = User(user_str, client=self.client)
             self.userlist[user.id] = user
         elif inp_type == 'l':
-            user_id = name_to_id(params[0])
+            user_id = utils.name_to_id(params[0])
             if user_id in self.userlist:
                 del self.userlist[user_id]
         elif inp_type == 'j':
@@ -50,19 +50,19 @@ class Room:
             user = User(user_str, client=self.client)
             self.userlist[user.id] = user
 
-    @require_client
+    @utils.require_client
     async def request_auth(self, client=None):
         await client.add_output('{}|/roomauth'.format(self.id))
 
-    @require_client
+    @utils.require_client
     async def say(self, content, client=None):
         await client.say(self.id, content)
 
-    @require_client
+    @utils.require_client
     async def join(self, client=None):
         await client.join(self.id)
 
-    @require_client
+    @utils.require_client
     async def leave(self, client=None):
         await client.leave(self.id)
 
@@ -88,10 +88,10 @@ class Battle(Room):
         elif inp_type == 'rated':
             self.rated = True
         elif inp_type == 'tier':
-            self.tier = name_to_id(params[0])
+            self.tier = utils.name_to_id(params[0])
         elif inp_type == 'rule':
             self.rules.append(params[0])
-        elif inp_type == 'win':
+        elif inp_type == 'win': #TODO: definitely clean this up
             winner_name = params[0]
             if self.players['p1'].name_matches(winner_name):
                 self.winner = self.players['p1']
@@ -105,11 +105,11 @@ class Battle(Room):
                 self.loser_id = 'p1'
             self.ended = True
 
-    @require_client
+    @utils.require_client
     async def forfeit(self, client=None):
         await client.forfeit(self.battle_id)
 
-    @require_client
+    @utils.require_client
     async def save_replay(self, client=None):
         await client.save_replay(self.id)
 
