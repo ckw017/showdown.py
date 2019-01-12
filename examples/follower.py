@@ -1,8 +1,11 @@
 import showdown
 import logging
+import warnings
 from pprint import pprint
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 with open('./examples/data/login.txt', 'rt') as f,\
      open('./examples/data/owner.txt', 'rt') as o:
     username, password = f.read().splitlines()
@@ -14,24 +17,22 @@ class FollowerClient(showdown.Client):
         showdown.Client.__init__(self, **kwargs)
         self.owner = showdown.User(ownername, client=self)
 
-    async def on_query_response(self, query_response):
-        if query_response.type == 'userdetails':
-            rooms = query_response.data['rooms']
-            if not rooms:
-                return
-            for room in rooms:
+    async def on_query_response(self, response_type, data):
+        logger.info(data)
+        if response_type == 'userdetails':
+            user_rooms = set(data['rooms'])
+            bot_rooms = set(self.rooms)
+            for room in user_rooms - bot_rooms:
                 await self.join(room)
-
-    async def on_chat_message(self, chat_message):
-        if chat_message.author == self.owner and chat_message.content=='.outputlogs':    
-            print('\n'.join(self.rooms[chat_message.room_id].logs))
+            for room in bot_rooms - user_rooms:
+                await self.leave(room)
 
     async def on_private_message(self, pm):
         if pm.recipient == self:
-            await pm.author.message(pm.author.register_time)
+            await pm.reply(pm.author.register_time)
 
     @showdown.Client.on_interval(interval=3)
     async def get_owner_details(self): 
         await self.owner.request_user_details()
 
-FollowerClient(name=username, password=password, server_id='azure').start()
+FollowerClient(name=username, password=password).start()
