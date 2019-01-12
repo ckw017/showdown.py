@@ -3,7 +3,6 @@ import requests
 import websockets
 import json
 import time
-import re
 import logging
 import traceback
 import warnings
@@ -50,91 +49,6 @@ class Client(user.User):
             for task in pending:
                 task.cancel()
 
-    async def login(self):
-        if not self.challengekeyid:
-            raise Exception('Cannot login, challstr has not been received yet')
-        if not self.name:
-            raise Exception('Cannot login, no username has been specified')
-        if not self.password:
-            raise Exception('Cannot login, no password has been specified')
-
-        data = {'act': 'login',
-                'name': self.name,
-                'pass': self.password,
-                'challenge': self.challstr,
-                'challengekeyid': self.challengekeyid}
-
-        logger.info('Logging in as "{}"'.format(self.name))
-        result = requests.post(self.action_url, data = data)
-        result_data = utils.parse_http_input(result.text)
-        assertion_data = result_data['assertion']
-        await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, assertion_data))
-        await self.on_login(result_data)
-
-
-    async def add_output(self, out):
-        await self.output_queue.put(out)
-
-    async def set_avatar(self, avatar_id):
-        await self.add_output('|/avatar {}'.format(avatar_id))
-
-    #Ladder interactions
-    async def upload_team(self, team_str):
-        await self.add_output('|/utm {}'.format(team_str))
-
-    async def validate_team(self, team_str, battle_format):
-        battle_format = name_to_id(battle_format)
-        await self.upload_team(team_str)
-        await self.add_output('|/vtm {}'.format(battle_format))
-
-    async def search_battles(self, team_str, battle_format):
-        battle_format = name_to_id(battle_format)
-        await self.upload_team(team_str)
-        await self.add_output('|/search {}'.format(battle_format))
-
-    async def cancel_search(self):
-        await self.add_output('|/cancelsearch')
-
-    #Rooms
-    async def leave(self, room_name):
-        room_id = name_to_id(room_name)
-        await self.add_output('{}|/leave'.format(room_id))
-
-    async def join(self, room_name):
-        room_id = name_to_id(room_name)
-        await self.add_output('|/join {}'.format(room_id))
-
-    #Battles
-    async def save_replay(self, battle_id):
-        assert battle_id.startswith('battle-')
-        await self.add_output('{}|/savereplay'.format(battle_id))
-
-    async def forfeit(self, battle_id):
-        await self.add_output('{}|/forfeit'.format(battle_id))
-
-    #Messages
-    async def private_message(self, user_name, content):
-        content = utils.clean_message_content(content)
-        user_id = utils.name_to_id(user_name)
-        await self.add_output('|/msg {}, {}'.format(user_id, content))
-
-    async def say(self, room_name, content):
-        content = utils.clean_message_content(content)
-        room_id = name_to_id(room_name)
-        if room_id == 'lobby':
-            room_id = ''
-        await self.add_output('{}|{}'.format(room_id, content))
-
-    #Queries
-    async def query_rooms(self):
-        await self.add_output('|/cmd rooms')
-
-    async def query_battles(self, tier='', min_elo=None):
-        message = '|/cmd roomlist {}'.format(name_to_id(tier))
-        if min_elo is not None:
-            message += ', {}'.format(min_elo)
-        await self.add_output(message)
-
     def on_interval(interval=0):
         def decorator(func):
             @wraps(func)
@@ -148,7 +62,6 @@ class Client(user.User):
             return wrapper
         return decorator
 
-
     @on_interval()
     async def sender(self):
         out = await self.output_queue.get()
@@ -156,6 +69,9 @@ class Client(user.User):
         logger.debug('>>> Sending:\n{}'.format(out))
         await self.websocket.send(json.dumps(out))
         await asyncio.sleep(len(out) * .5)
+
+    async def add_output(self, out):
+        await self.output_queue.put(out)
 
     @on_interval()
     async def receiver(self):
@@ -222,6 +138,87 @@ class Client(user.User):
                 self.rooms[room_id].add_content(inp)
 
             await self.on_receive(room_id, inp_type, params)
+
+    async def login(self):
+        if not self.challengekeyid:
+            raise Exception('Cannot login, challstr has not been received yet')
+        if not self.name:
+            raise Exception('Cannot login, no username has been specified')
+        if not self.password:
+            raise Exception('Cannot login, no password has been specified')
+
+        data = {'act': 'login',
+                'name': self.name,
+                'pass': self.password,
+                'challenge': self.challstr,
+                'challengekeyid': self.challengekeyid}
+
+        logger.info('Logging in as "{}"'.format(self.name))
+        result = requests.post(self.action_url, data = data)
+        result_data = utils.parse_http_input(result.text)
+        assertion_data = result_data['assertion']
+        await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, assertion_data))
+        await self.on_login(result_data)
+
+    async def set_avatar(self, avatar_id):
+        await self.add_output('|/avatar {}'.format(avatar_id))
+
+    #Ladder interactions
+    async def upload_team(self, team_str):
+        await self.add_output('|/utm {}'.format(team_str))
+
+    async def validate_team(self, team_str, battle_format):
+        battle_format = name_to_id(battle_format)
+        await self.upload_team(team_str)
+        await self.add_output('|/vtm {}'.format(battle_format))
+
+    async def search_battles(self, team_str, battle_format):
+        battle_format = name_to_id(battle_format)
+        await self.upload_team(team_str)
+        await self.add_output('|/search {}'.format(battle_format))
+
+    async def cancel_search(self):
+        await self.add_output('|/cancelsearch')
+
+    #Rooms
+    async def leave(self, room_name):
+        room_id = name_to_id(room_name)
+        await self.add_output('{}|/leave'.format(room_id))
+
+    async def join(self, room_name):
+        room_id = name_to_id(room_name)
+        await self.add_output('|/join {}'.format(room_id))
+
+    #Battles
+    async def save_replay(self, battle_id):
+        assert battle_id.startswith('battle-')
+        await self.add_output('{}|/savereplay'.format(battle_id))
+
+    async def forfeit(self, battle_id):
+        await self.add_output('{}|/forfeit'.format(battle_id))
+
+    #Messages
+    async def private_message(self, user_name, content):
+        content = utils.clean_message_content(content)
+        user_id = utils.name_to_id(user_name)
+        await self.add_output('|/msg {}, {}'.format(user_id, content))
+
+    async def say(self, room_name, content):
+        content = utils.clean_message_content(content)
+        room_id = name_to_id(room_name)
+        if room_id == 'lobby':
+            room_id = ''
+        await self.add_output('{}|{}'.format(room_id, content))
+
+    #Queries
+    async def query_rooms(self):
+        await self.add_output('|/cmd rooms')
+
+    async def query_battles(self, tier='', min_elo=None):
+        message = '|/cmd roomlist {}'.format(name_to_id(tier))
+        if min_elo is not None:
+            message += ', {}'.format(min_elo)
+        await self.add_output(message)
 
     #Hooks
     async def on_connect(self):
