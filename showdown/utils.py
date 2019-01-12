@@ -5,14 +5,18 @@ import string
 import inspect
 from functools import wraps
 
-def require_client(func):
+def require_client(func): #TODO give these methods a keyword arg for a client
     @wraps(func)
     async def async_inner(self, *args, **kwargs):
-        if not hasattr(self, 'client') or self.client is None:
+        client = kwargs.get('client', None) or getattr(self, 'client', None) 
+        if client is None:
             raise Exception('{0} object does not have a client -- this function will do '
                             'nothing. To set a client, initialize the object with '
-                            '{0}(..., client=your_client)'.format(self.__class__.__name__))
+                            '{0}(..., client=your_client). Alternatively, you can '
+                            'use the client keyword argument in the method.'
+                                .format(self.__class__.__name__))
         else:
+            kwargs['client'] = client
             return await func(self, *args, **kwargs)
     return async_inner
 

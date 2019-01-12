@@ -185,7 +185,6 @@ class Client(user.User):
 
     #Battles
     async def save_replay(self, battle_id):
-        assert battle_id.startswith('battle-')
         await self.add_output('{}|/savereplay'.format(battle_id))
 
     async def forfeit(self, battle_id):

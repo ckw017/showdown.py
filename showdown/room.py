@@ -51,12 +51,20 @@ class Room:
             self.userlist[user.id] = user
 
     @require_client
-    async def request_auth(self):
-        await self.client.add_output('{}|/roomauth'.format(self.id))
+    async def request_auth(self, client=None):
+        await client.add_output('{}|/roomauth'.format(self.id))
 
     @require_client
-    async def say(self, content):
-        await self.client.say(self.id, content)
+    async def say(self, content, client=None):
+        await client.say(self.id, content)
+
+    @require_client
+    async def join(self, client=None):
+        await client.join(self.id)
+
+    @require_client
+    async def leave(self, client=None):
+        await client.leave(self.id)
 
 class Battle(Room):
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -98,8 +106,12 @@ class Battle(Room):
             self.ended = True
 
     @require_client
-    async def savereplay(self):
-        await self.client.savereplay(self.id)
+    async def forfeit(self, client=None):
+        await client.forfeit(self.battle_id)
+
+    @require_client
+    async def savereplay(self, client=None):
+        await client.savereplay(self.id)
 
 class_map = {
     'chat': Room,

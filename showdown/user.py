@@ -42,11 +42,11 @@ class User:
         return self.id == name_to_id(username)
 
     @require_client
-    async def message(self, content):
+    async def message(self, content, client=None):
         await self.client.private_message(self, content)
 
     @require_client
-    async def request_user_details(self):
+    async def request_user_details(self, client=None):
         await self.client.add_output('|/cmd userdetails {}'.format(self.id))
 
     def _get_user_data(self, force_update=False):

@@ -23,8 +23,8 @@ class ChatMessage:
                abbreviate(self.content))
 
     @require_client
-    async def reply(self, message):
-        await self.client.say(message, room_id=self.room_id)
+    async def reply(self, message, client=None):
+        await client.say(message, room_id=self.room_id)
 
 class PrivateMessage:
     def __init__(self, author_str, recipient_str, *content, client=None):
@@ -42,5 +42,5 @@ class PrivateMessage:
                abbreviate(self.content))
 
     @require_client
-    async def reply(self, message):
-        await self.client.private_message(self.author.id, message)
+    async def reply(self, message, client=None):
+        await client.private_message(self.author.id, message)
