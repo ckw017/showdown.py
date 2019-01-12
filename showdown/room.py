@@ -110,8 +110,8 @@ class Battle(Room):
         await client.forfeit(self.battle_id)
 
     @require_client
-    async def savereplay(self, client=None):
-        await client.savereplay(self.id)
+    async def save_replay(self, client=None):
+        await client.save_replay(self.id)
 
 class_map = {
     'chat': Room,
