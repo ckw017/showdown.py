@@ -9,7 +9,7 @@ Examples have been provided in the ./examples directory. Make sure to create you
 
 The client on its own doesn't do very much, and is instead intended to be extended and modified. This can be done through various "hooks" left in the base class. The following program uses the ``on_private_message`` hook to echo back the content of any PMs it receives.
 
-```
+```python3
 import showdown
 import logging
 
