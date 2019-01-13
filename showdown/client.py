@@ -48,7 +48,6 @@ class Client(user.User):
     Attributes:
         server (showdown.server.Server) : object representing the server the client is
             connected to.
-        action_url (str) : The url that the client makes HTTP requests to.
         websocket_url (str) : The url over which the client's websocket connection is
             established
         password (str) : The password the client uses to login
@@ -77,10 +76,8 @@ class Client(user.User):
         super().__init__(name, client=self)
 
         # URL setup
-        self.server = server.Server(id=server_id, host=server_host)
-        self.action_url = self.server.generate_action_url()
+        self.server = server.Server(id=server_id, host=server_host, client=self)
         self.websocket_url = self.server.generate_ws_url()
-        logger.info('Using action url at {}'.format(self.action_url))
         logger.info('Using websocket at {}'.format(self.websocket_url))
 
         # Initialize client attributes
@@ -114,7 +111,8 @@ class Client(user.User):
         decorator to the event loop.
         """
         async with websockets.connect(self.websocket_url) as self.websocket, \
-                                  aiohttp.ClientSession() as self.session:
+                                  aiohttp.ClientSession() as session:
+            self.server.set_session(session)
             tasks = []
             for att in dir(self):
                 att = getattr(self, att)
@@ -216,17 +214,7 @@ class Client(user.User):
                 data = json.loads(data)
                 await self.on_query_response(response_type, data)
                 if response_type == 'savereplay':
-                    headers = {
-                        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
-                    }
-                    data['act'] = 'uploadreplay'
-                    async with self.session.post(self.action_url, data=data, headers=headers) \
-                              as result:
-                        logger.info('^^^Saved replay for `{}`, outcome: {}'.format(
-                                data['id'],
-                                await result.text()
-                            )
-                        )
+                    await self.server.save_replay_async(data)
 
 
             #Messages
@@ -268,18 +256,16 @@ class Client(user.User):
         if not self.password:
             raise Exception('Cannot login, no password has been specified')
 
-        data = {'act': 'login',
-                'name': self.name,
-                'pass': self.password,
-                'challenge': self.challstr,
-                'challengekeyid': self.challengekeyid}
-
         logger.info('Logging in as "{}"'.format(self.name))
-        result = requests.post(self.action_url, data = data)
-        result_data = utils.parse_http_input(result.text)
-        assertion_data = result_data['assertion']
-        await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, assertion_data))
-        await self.on_login(result_data)
+        login_data = await self.server.login_async(self.name, 
+            self.password, self.challstr, self.challengekeyid)
+        if not login_data['actionsuccess']:
+            raise ValueError('Failed to log in as user `{}`. Raw login result:\n{}'.format(
+                self.name, result_data))
+        else:
+            logger.info('Login succeeded')
+        await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, login_data['assertion']))
+        await self.on_login(login_data)
 
     async def set_avatar(self, avatar_id):
         """
@@ -378,7 +364,10 @@ class Client(user.User):
             room_id = ''
         await self.add_output('{}|/leave'.format(room_id))
 
-    #Battles
+    # # # # # # # # # # # #
+    # Battle interactions #
+    # # # # # # # # # # # #
+
     async def save_replay(self, battle_id):
         """
         |coro|

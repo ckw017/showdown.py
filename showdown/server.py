@@ -5,6 +5,7 @@ import traceback
 import logging
 import json
 from . import utils
+from functools import wraps
 
 #Logging setup
 logger = logging.getLogger(__name__)
@@ -46,22 +47,66 @@ def generate_ws_url(server_hostname):
 def generate_action_url(server_id):
     return ACTION_URL_BASE.format(server_id = server_id)
 
+def require_session(func):
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        session = kwargs.get('session', None) or getattr(self, 'session', None) 
+        if session is None:
+            raise Exception("You can't use {0}.{1} without setting an aiohttp ClientSession. "
+                            "This can be done with {0}.set_session method. You can also "
+                            "use the keyword argument {0}.{1}(session=your_session)."
+                            .format(self.__class__.__name__, func.__name__))
+        else:
+            kwargs['session'] = session
+            return await func(self, *args, **kwargs)
+    return wrapper
+
 class Server:
     def __init__(self, id='showdown', host=None, client=None):
         self.id = id
         self.host = host or get_host(self.id)
         self.client = client
+        self.action_url = generate_action_url(self.id)
+        self.session = None
 
     def __repr__(self):
         return '<Server id={} host={}>'.format(\
             self.id,
             self.host)
 
+    def set_session(self, session):
+        self.session = session
+
     def generate_ws_url(self):
         return generate_ws_url(self.host)
 
-    def generate_action_url(self):
-        return generate_action_url(self.id)
-
     async def request_rooms(self):
         await self.client.request_rooms()
+
+    @require_session
+    async def save_replay_async(self, battle_data, session=None):
+        headers = {
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        }
+        battle_data['act'] = 'uploadreplay'
+        async with self.session.post(self.action_url, data=battle_data, headers=headers) \
+                  as result:
+            logger.info('^^^ Saved replay for `{}`, outcome: {}'.format(
+                    battle_data['id'],
+                    await result.text()
+                )
+            )
+            return result
+
+    @require_session
+    async def login_async(self, name, password, challstr, challengekeyid, session=None):
+        data = {
+            'act': 'login',
+            'name': name,
+            'pass': password,
+            'challenge': challstr,
+            'challengekeyid': challengekeyid
+        }
+        async with self.session.post(self.action_url, data=data) as result:
+            return utils.parse_http_input(await result.text())
+            
