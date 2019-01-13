@@ -102,7 +102,7 @@ class Client(user.User):
         """
         self.autologin = autologin
         self.loop.run_until_complete(self._handler())
-        info.log('Event loop closed.')
+        logger.info('Event loop closed.')
 
     async def _handler(self):
         """
@@ -172,7 +172,7 @@ class Client(user.User):
         Params:
             output_str (obj:`str`) : String to be sent to the server.
         """
-        await self.output_queue.put(out)
+        await self.output_queue.put(output_str)
 
     @on_interval()
     async def receiver(self):
