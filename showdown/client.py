@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class Client(user.User):
     """
-    Object for interacting with Showdown's websocket interface. Includes
+    Class for interacting with Showdown's websocket interface. Includes
     hooks for certain events and high-level methods to send and receive 
     information from Showdown's servers.
 
@@ -219,9 +219,17 @@ class Client(user.User):
 
             #Messages
             elif inp_type == 'c:' or inp_type == 'c':
-                chat_message = message.ChatMessage(room_id, inp_type, *params, client=self)
+                timestamp = None
+                if inp_type == 'c:':
+                    timestamp, params = int(params[0]), params[1:]
+                author_str, *content = params
+                content = '|'.join(content)
+                chat_message = message.ChatMessage(room_id, timestamp,
+                    author_str, content, client=self)
                 await self.on_chat_message(chat_message)
             elif inp_type == 'pm':
+                author_str, recipient_str, *content = params
+                content = '|'.join(content)
                 private_message = message.PrivateMessage(*params, client=self)
                 await self.on_private_message(private_message)
 
@@ -323,6 +331,10 @@ class Client(user.User):
         """
         await self.add_output('|/cancelsearch')
 
+    # # # # # # # # # # # 
+    # Room interactions #
+    # # # # # # # # # # # 
+
     async def join(self, room_id):
         """
         |coro|
@@ -337,13 +349,7 @@ class Client(user.User):
             fail. Use the Room.leave() method instead, or Client.leave(room.id)
         """
         assert type(room_id) is str, "Paramater room_id should be a string."
-        if utils.name_to_id(room_id) == 'lobby':
-            room_id = ''
         await self.add_output('|/join {}'.format(room_id))
-
-    # # # # # # # # # # # 
-    # Room interactions #
-    # # # # # # # # # # # 
 
     async def leave(self, room_id):
         """
@@ -360,8 +366,6 @@ class Client(user.User):
             fail. Use the Room.leave() method instead, or Client.leave(room.id).
         """
         assert type(room_id) is str, "Parameter room_id should be a string."
-        if utils.name_to_id(room_id) == 'lobby':
-            room_id = ''
         await self.add_output('{}|/leave'.format(room_id))
 
     # # # # # # # # # # # #
