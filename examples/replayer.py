@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 with open('./examples/data/login.txt', 'rt') as f,\
      open('./examples/data/owner.txt', 'rt') as o:
-    username, password = f.read().splitlines()
-    ownername = o.read()
+    username, password = f.read().strip().splitlines()
+    ownername = o.read().strip()
 
 class ReplayClient(showdown.Client):
     def __init__(self, **kwargs):

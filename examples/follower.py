@@ -1,6 +1,7 @@
 import showdown
 import logging
 import warnings
+from showdown.utils import strip_prefix
 from pprint import pprint
 
 logging.basicConfig(level=logging.INFO)
@@ -8,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 with open('./examples/data/login.txt', 'rt') as f,\
      open('./examples/data/owner.txt', 'rt') as o:
-    username, password = f.read().splitlines()
-    ownername = o.read()
+    username, password = f.read().strip().splitlines()
+    ownername = o.read().strip()
 
 class FollowerClient(showdown.Client):
     def __init__(self, **kwargs):
@@ -19,16 +20,12 @@ class FollowerClient(showdown.Client):
     async def on_query_response(self, response_type, data):
         logger.info(data)
         if response_type == 'userdetails':
-            user_rooms = set(data['rooms'])
+            user_rooms = set(map(strip_prefix, data.get('rooms') or {}))
             bot_rooms = set(self.rooms)
             for room in user_rooms - bot_rooms:
                 await self.join(room)
             for room in bot_rooms - user_rooms:
                 await self.leave(room)
-
-    async def on_private_message(self, pm):
-        if pm.recipient == self:
-            await pm.reply(pm.author.register_time)
 
     @showdown.Client.on_interval(interval=3)
     async def get_owner_details(self): 

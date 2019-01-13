@@ -3,7 +3,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 with open('./examples/data/login.txt', 'rt') as f:
-    username, password = f.read().splitlines()
+    username, password = f.read().strip().splitlines()
 
 
 class EchoClient(showdown.Client):
