@@ -230,7 +230,7 @@ class Client(user.User):
             elif inp_type == 'pm':
                 author_str, recipient_str, *content = params
                 content = '|'.join(content)
-                private_message = message.PrivateMessage(*params, client=self)
+                private_message = message.PrivateMessage(author_str, recipient_str, content, client=self)
                 await self.on_private_message(private_message)
 
             #Rooms
