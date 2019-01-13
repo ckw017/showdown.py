@@ -17,7 +17,19 @@ from . import message, room, server, user, utils
 #Logging setup
 logger = logging.getLogger(__name__)
 
-OutputToken = namedtuple('OutputMessage', 'content ignore_before discard_after')
+class OutputToken:
+    def __init__(self, content, ignore_before, discard_after):
+        self.content = content
+        self.ignore_before = ignore_before
+        self.discard_after = discard_after
+        self.sent = False
+        self.discarded = False
+
+    def expired(self):
+        return time.time() > self.discard_after
+
+    def ready(self):
+        return time.time() > self.ignore_before
 
 class Client(user.User):
     """
@@ -106,7 +118,7 @@ class Client(user.User):
             bool : True if exited gracefully (on an interrupt), else False
 
         Args:
-            autologin (obj:`bool`, optional) : Bool denoting whether or not the
+            autologin (:obj:`bool`, optional) : Bool denoting whether or not the
             client will automatically login after connecting to the server. 
             Defaults to True.
         """
@@ -149,7 +161,7 @@ class Client(user.User):
         interval
 
         Params:
-            interval (obj:`float`, optional) :  The length of the interval to 
+            interval (:obj:`float`, optional) :  The length of the interval to 
             run the method on in seconds
 
         Returns:
@@ -182,24 +194,28 @@ class Client(user.User):
         |coro|
 
         Waits for relevant output to appear in the client's output_queue 
-        attribute, and sends it back to the server through websocket. 
+        attribute, and sends it back to the server through websocket.
+
+        Returns:
+            None
         """
         out = await self.output_queue.get()
         now = time.time()
-        if out.ignore_before > now:
-            logger.debug('>>> Requeuing {}'.format(out))
+        if not out.ready():
+            logger.info('>>> Requeuing {}'.format(out))
             await self.output_queue.put(out)
             await asyncio.sleep(.05)
             return
-        if out.discard_after < now:
-            logger.debug('>>> Discarding {}'.format(out))
+        if out.expired():
+            logger.info('>>> Discarding {}'.format(out))
+            out.discarded = True
             await asyncio.sleep(.05)
             return
-        out = out.content
-        out = [out] if type(out) is str else out
-        logger.info('>>> Sending:\n{}'.format(out))
-        await self.websocket.send(json.dumps(out))
-        await asyncio.sleep(len(out) * .5)
+        content = [out.content] if type(out.content) is str else out.content
+        logger.info('>>> Sending:\n{}'.format(content))
+        await self.websocket.send(json.dumps(content))
+        out.sent = True
+        await asyncio.sleep(len(content) * .5)
 
     async def add_output(self, content, delay=0, lifespan=math.inf):
         """
@@ -208,14 +224,17 @@ class Client(user.User):
         Adds output to be sent across the client's connection to the server.
 
         Params:
-            content (obj:`str` or obj:`list` of obj:`str`) : Content to be sent
+            content (:obj:`str` or obj:`list` of obj:`str`) : Content to be sent
                 to the server.
-            delay (obj:`int` or obj:`float`, optional) : The minimum delay
+            delay (:obj:`int` or obj:`float`, optional) : The minimum delay
                 before sending the content. If the client's output queue 
                 encounters this value before the delay has passed, it will 
                 ignore the content.
-            lifespan (obj:`int` or obj:`float`, optional) : The maximum delay
+            lifespan (:obj:`int` or obj:`float`, optional) : The maximum delay
                 before content is discarded from the client's output queue.
+
+        Returns:
+            namedtuple : Token representing the content to be sent.
         """
         assert type(lifespan) in (int, float), \
             'lifespan must be float or int'
@@ -229,8 +248,9 @@ class Client(user.User):
         now = time.time()
         ignore_before = now + delay
         discard_after = now + lifespan
-        await self.output_queue.put(
-            OutputToken(content, ignore_before, discard_after))
+        token = OutputToken(content, ignore_before, discard_after)
+        await self.output_queue.put(token)
+        return token
 
     @on_interval()
     async def receiver(self):
@@ -343,6 +363,19 @@ class Client(user.User):
         await self.add_output('|/avatar {}'.format(avatar_id), 
             delay=delay, lifespan=lifespan)
 
+    async def use_command(self, room_id, command_name, *args,
+        delay=0, lifespan=math.inf):
+        """
+        |coro|
+
+        Sends a generic command to the specified room. For example, to send the
+        `/mute user, No spamming!` command in the Monotype room, you can use
+        client.use_command('monotype', 'mute', 'user', 'No spamming!')
+        """
+        await self.add_output('{}|/{} {}'.format(
+            room_id, command_name, ', '.join(args)),
+            delay=delay, lifespan=lifespan)
+
     # # # # # # # # # # # #
     # Ladder interactions #
     # # # # # # # # # # # #
@@ -409,7 +442,7 @@ class Client(user.User):
         Makes the client join  the room specified by the given room_id.
 
         Params:
-            room_id (obj:`str`) : The id of the room you want to join. 
+            room_id (:obj:`str`) : The id of the room you want to join. 
                 Ex: 'lobby', 'ou'
 
         Notes:
@@ -427,7 +460,7 @@ class Client(user.User):
         Makes client leave the room specified by the given room_id.
 
         Params:
-            room_id (obj:`str`) : The id of the room you want to leave. 
+            room_id (:obj:`str`) : The id of the room you want to leave. 
                 Ex: 'lobby', 'ou'
 
         Notes:
@@ -449,7 +482,7 @@ class Client(user.User):
         Requests data from the server to save the battle specified by battle_id.
 
         Params:
-            battle_id (obj:`str`) : The id of the battle you want to save the 
+            battle_id (:obj:`str`) : The id of the battle you want to save the 
                 replay for. Ex: 'battle-gen7monotype-12345678'
 
         Returns:
@@ -477,7 +510,7 @@ class Client(user.User):
             None
 
         Params:
-            battle_id (obj:`str`) : The id of the battle you want to forfeit.
+            battle_id (:obj:`str`) : The id of the battle you want to forfeit.
                 Ex: 'battle-gen7monotype-12345678'
         """
         await self.add_output('{}|/forfeit'.format(battle_id),
@@ -496,10 +529,10 @@ class Client(user.User):
         The client must be logged in for this to work.
 
         Params:
-            user_name (obj:`str`) : The name of the user the client will send 
+            user_name (:obj:`str`) : The name of the user the client will send 
                 the message to.
-            content (obj:`str`) : The content of the message.
-            strict (obj:`bool`, optional) : If this flag is set, passing in 
+            content (:obj:`str`) : The content of the message.
+            strict (:obj:`bool`, optional) : If this flag is set, passing in 
                 content more than 300 characters will raise an error. Otherwise,
                 the message will be senttruncated with a warning. This paramater
                  defaults to False.
@@ -530,10 +563,10 @@ class Client(user.User):
         be logged in for this to work
 
         Params:
-            room_id (obj:`str`) : The id of the room the client will send the 
+            room_id (:obj:`str`) : The id of the room the client will send the 
                 message to.
-            content (obj:`str`) : The content of the message.
-            strict (obj:`bool`, optional) : If this flag is set, passing in 
+            content (:obj:`str`) : The content of the message.
+            strict (:obj:`bool`, optional) : If this flag is set, passing in 
                 content more than 300 characters will raise an error. Otherwise,
                 the message will be sent truncated with a warning. This 
                 paramater defaults to False.
@@ -582,9 +615,9 @@ class Client(user.User):
         as a query response with type 'roomlist'.
 
         Params:
-            tier (obj:`str`) : The tier of the battle.
+            tier (:obj:`str`) : The tier of the battle.
                 Ex: 'gen7monotype'
-            min_elo (obj:`int`) : Minimum elo of the battle. Defaults to None, 
+            min_elo (:obj:`int`) : Minimum elo of the battle. Defaults to None, 
                 which will query for all battles regardless of rating.
 
         Returns:
@@ -620,7 +653,7 @@ class Client(user.User):
         Hook for subclasses. Called immediately after the client logs in.
 
         Params:
-            login_response (obj:`dict`) : The sent by the server upon login 
+            login_response (:obj:`dict`) : The sent by the server upon login 
                 attempt. 
 
         Notes:
@@ -636,7 +669,7 @@ class Client(user.User):
         (generally upon joining a new room)
     
         Params:
-            room_obj (obj:`room.Room`) : Room object for the room that was 
+            room_obj (:obj:`room.Room`) : Room object for the room that was 
                 initialized.
 
         Notes:
@@ -652,7 +685,7 @@ class Client(user.User):
         message (generally upon leaving a room, or when a battle expires)
     
         Params:
-            room_obj (obj:`room.Room`) : Room object for the room that was 
+            room_obj (:obj:`room.Room`) : Room object for the room that was 
                 initialized.
 
         Notes:
@@ -668,9 +701,9 @@ class Client(user.User):
         from the server.
     
         Params:
-            response_type (obj:`str`) : The response type.
+            response_type (:obj:`str`) : The response type.
                 Ex: 'savereplay', 'rooms', 'roomlist', 'userdetails'
-            data (obj:`dict`) : The json response from the server bundled with 
+            data (:obj:`dict`) : The json response from the server bundled with 
                 the response
 
         Notes:
@@ -685,7 +718,7 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a chat message.
     
         Params:
-            chat_message (obj:`showdown.message.ChatMessage`) : An object
+            chat_message (:obj:`showdown.message.ChatMessage`) : An object
                 representing the received message.
 
         Notes:
@@ -700,7 +733,7 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a private message.
     
         Params:
-            private_message (obj:`showdown.message.PrivateMessage`) : An object 
+            private_message (:obj:`showdown.message.PrivateMessage`) : An object 
                 representing the received message.
 
         Notes:
@@ -716,12 +749,12 @@ class Client(user.User):
         server.
     
         Params:
-            room_id (obj:`str`) : ID of the room with which the information is 
+            room_id (:obj:`str`) : ID of the room with which the information is 
                 associated with. Messages with unspecified IDs default to '
                 lobby', though may not necessarily be associated with 'lobby'.
-            inp_type (obj:`str`) : The type of information received.
+            inp_type (:obj:`str`) : The type of information received.
                 Ex: 'l' (user leave), 'j' (user join), 'c:' (chat message)
-            params (obj:`list`) : List of the parameters associated with the 
+            params (:obj:`list`) : List of the parameters associated with the 
                 inp_type. Ex: a user leave has params of ['zarel'], where 'zarel'
                 represents the user id of the user that left.
 

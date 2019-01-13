@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+"""Miscellaneous utils for the showdown module"""
 import json
 import re
 import random

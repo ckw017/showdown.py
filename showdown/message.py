@@ -18,13 +18,16 @@ class ChatMessage:
             for the objects reply method
 
         Attributes:
-            room_id (obj:`str`) : The ID of the room in which the message was sent
-            timestamp (obj:`int` or None) : The timestamp when the message was sent
-            author_str (obj:`str`) : A string representing the name and rank of the
-                author
-            content (obj:`str`) : A string representing the content of the message
-            client (obj:`showdown.client.Client` or None) : The Client to be used
-                for the objects reply method
+            room_id (obj:`str`) : The ID of the room in which the message was
+                sent
+            timestamp (obj:`int` or None) : The timestamp when the message was
+                sent
+            author_str (obj:`str`) : A string representing the name and rank of
+                the author
+            content (obj:`str`) : A string representing the content of the 
+                message
+            client (obj:`showdown.client.Client` or None) : The Client to be
+                used for the objects reply method
     """
     def __init__(self, room_id, timestamp, author_str, content, client=None):
         self.room_id = room_id
@@ -52,14 +55,14 @@ class ChatMessage:
     @utils.require_client
     async def reply(self, content, client=None, delay=0, lifespan=math.inf):
         """
-        Uses the provided client or the object's client attribute to send a message
-        to the message's room of origin.
+        Uses the provided client or the object's client attribute to send a
+        message to the message's room of origin.
 
         Args:
             room_id (obj:`str`) : The content of the reply
-            client (obj:`showdown.client.Client`, optional) : The client used to 
-                reply to the message. This will default to the message's client
-                object
+            client (obj:`showdown.client.Client`, optional) : The client used
+                to reply to the message. This will default to the message's 
+                client object
         """
         await client.say(self.room_id, content, delay=delay, lifespan=lifespan)
 
@@ -70,8 +73,8 @@ class PrivateMessage:
     Args:
         author_str (obj:`str`) : A string representing the name and rank of the
             author
-        recipient_str (obj:`str`) : A string representing the name and rank of the
-            recipient
+        recipient_str (obj:`str`) : A string representing the name and rank of 
+            the recipient
     """
     def __init__(self, author_str, recipient_str, content, client=None):
         self.timestamp = int(time.time())
@@ -97,8 +100,8 @@ class PrivateMessage:
     @utils.require_client
     async def reply(self, content, client=None, delay=0, lifespan=math.inf):
         """
-        Uses the provided client or the object's client attribute to send a message
-        to the message's room of origin.
+        Uses the provided client or the object's client attribute to send a
+        message to the message's room of origin.
 
         Args:
             room_id (obj:`str`) : The content of the reply
