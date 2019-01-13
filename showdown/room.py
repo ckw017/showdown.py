@@ -94,6 +94,8 @@ class Battle(Room):
         Room.update(self, inp_type, *params)
         if inp_type == 'player':
             player_id, name = params[0], params[1]
+            if not name:
+                return
             self.players[player_id] = user.User(name, client=self.client)
         elif inp_type == 'rated':
             self.rated = True
@@ -118,7 +120,7 @@ class Battle(Room):
     @utils.require_client
     async def save_replay(self, client=None):
         await client.save_replay(self.id)
-        
+
     @utils.require_client
     async def forfeit(self, client=None):
         await client.forfeit(self.battle_id)
@@ -132,15 +134,15 @@ class Battle(Room):
         pass
 
     @utils.require_client
-    async def switch(self, client=None)
+    async def switch(self, client=None):
         pass #["battle-gen7randombattle-847809604|/choose switch 5|68"]
 
     @utils.require_client
-    async def move(self, client=None)
+    async def move(self, client=None):
         pass
 
     @utils.require_client
-    async def undo(self, client=None)
+    async def undo(self, client=None):
         pass
 
 class_map = {

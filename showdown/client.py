@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Module for showdown's Client class"""
 import asyncio
+import aiohttp
 import requests
 import websockets
 import json
@@ -90,6 +91,7 @@ class Client(user.User):
         self.max_room_logs = max_room_logs
         self.autologin = False
         self.websocket = None #Initialized in _handler
+        self.session = None
         self.loop = loop or asyncio.get_event_loop()
 
     def start(self, autologin=True):
@@ -111,7 +113,8 @@ class Client(user.User):
         Creates websocket connection and adds any methods flagged by the on_interval
         decorator to the event loop.
         """
-        async with websockets.connect(self.websocket_url) as self.websocket:
+        async with websockets.connect(self.websocket_url) as self.websocket, \
+                                  aiohttp.ClientSession() as self.session:
             tasks = []
             for att in dir(self):
                 att = getattr(self, att)
@@ -209,11 +212,22 @@ class Client(user.User):
 
             #Process query response
             elif inp_type == 'queryresponse':
-                response_type, data = params
+                response_type, data = params[0], '|'.join(params[1:])
                 data = json.loads(data)
                 await self.on_query_response(response_type, data)
                 if response_type == 'savereplay':
-                    pass #TODO: upload replay stuff here
+                    headers = {
+                        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                    }
+                    data['act'] = 'uploadreplay'
+                    async with self.session.post(self.action_url, data=data, headers=headers) \
+                              as result:
+                        logger.info('^^^Saved replay for `{}`, outcome: {}'.format(
+                                data['id'],
+                                await result.text()
+                            )
+                        )
+
 
             #Messages
             elif inp_type == 'c:' or inp_type == 'c':

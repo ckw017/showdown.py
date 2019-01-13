@@ -24,11 +24,15 @@ def require_client(func): #TODO give these methods a keyword arg for a client
             return await func(self, *args, **kwargs)
     return wrapper
 
-def clean_message_content(content):
+def clean_message_content(content, strict=False):
     content = str(content)
     if len(content) > 300:
-        warnings.warn('Message content is too long (>300 characters). Truncating.')
-        content = content[:300]
+        if strict:
+            raise ValueError('Message content is too long (>300 characters). The '
+                             'message will not be sent.')
+        else:
+            warnings.warn('Message content is too long (>300 characters). Truncating.')
+            content = content[:300]
     return content
 
 def abbreviate(content):
