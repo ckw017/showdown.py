@@ -21,58 +21,61 @@ OutputToken = namedtuple('OutputMessage', 'content ignore_before discard_after')
 
 class Client(user.User):
     """
-    Class for interacting with Showdown's websocket interface. Includes
-    hooks for certain events and high-level methods to send and receive 
-    information from Showdown's servers.
+    Class for interacting with Showdown's websocket interface. Includes hooks
+    for certain events and high-level methods to send and receive information
+    from Showdown's servers.
 
     Notes:
-        Once you create a client object, use Client.start() to begin you connection.
-        If want your bot to be anonymous (not logged in), run start with the keyword
-        argument start(autologin=False)
+        Once you create a client object, use Client.start() to begin you 
+        connection. If want your bot to be anonymous (not logged in), run start
+        with the keyword argument start(autologin=False)
 
     Args:
-        name (:obj:`str`, optional) : The username of the account you would like to log in
-            to. By default, this is set to the empty string.
-        password (:obj:`str`, optional) L The password of the account you would like to log
-            in to. By default, this is set to the empty string.
-        loop (optional) : the asyncio eventloop used by the client to send on receive info
-            across websockets. If no loop is specified, asyncio.get_event_loop() will be 
-            used to create an event loop
-        max_room_logs (:obj:`int`, optional) : The number of logs to save for active rooms.
-            A log is any event that takes place in a room, including user joins, leaves,
-            chat messages, and raw html. This information is stored in a FIFO deque.
+        name (:obj:`str`, optional) : The username of the account you would 
+            like to log in to. By default, this is set to the empty string.
+        password (:obj:`str`, optional) L The password of the account you would
+            like to log in to. By default, this is set to the empty string.
+        loop (optional) : the asyncio eventloop used by the client to send on 
+            receive info across websockets. If no loop is specified, 
+            asyncio.get_event_loop() will be used to create an event loop
+        max_room_logs (:obj:`int`, optional) : The number of logs to save for
+            active rooms. A log is any event that takes place in a room, 
+            including user joins, leaves, chat messages, and raw html. This
+            information is stored in a FIFO deque.
         server_id (:obj:`str`, optional) : The id of the server the client will
-            connect to. For a list of all associated  servers, visit the page at
-            https://pokemonshowdown.com/servers. This value defaults to 'showdown', the
-            "main" showdown server.
-        server_host (:obj:`str`, optional) : The host name of the server the client will
-            connect to. This value is None by default, and will be retrieved automatically
-            from https://pokemonshowdown.com/servers/{host_name}.json
+            connect to. For a list of all associated  servers, visit the page
+            at https://pokemonshowdown.com/servers. This value defaults to 
+            'showdown', the "main" showdown server.
+        server_host (:obj:`str`, optional) : The host name of the server the
+            client will connect to. This value is None by default, and will be
+            retrieved automatically from 
+            https://pokemonshowdown.com/servers/{host_name}.json
 
     Attributes:
-        server (showdown.server.Server) : object representing the server the client is
-            connected to.
-        websocket_url (str) : The url over which the client's websocket connection is
-            established
+        server (showdown.server.Server) : object representing the server the 
+            client is connected to.
+        websocket_url (str) : The url over which the client's websocket 
+            connection is established
         password (str) : The password the client uses to login
-        challengekeyid (str) : Id assigned by the server to identify the client. Used
-            to login.
-        challengestr (str) : Token assigned by the server to identify the client. Used
-            to login.
-        output_queue (asyncio.Queue) : Queue used to manage what is sent back to the
-            server websocket.
-        rooms (dict) : Dictionary with entries of {str : showdown.room.Room} that maps
-            room_id's to Rooms the client is currently connected to.
-        max_room_logs (int) : The maximum number of logs stored in this client's Room
-            objects.
-        autologin (bool) : Bool denoting whether or not the client will automatically
-            login on a call to the Client.start method. Can be set by using a keyword
-            argument in Client.start
-        websocket (websockets.websocket) : The socket the client uses to communicate with
-            the server. Initialized to None until Client.start() is called.
-        loop (asyncio event loop (Differs between platforms)) : The event loop used for
-            the client's websocket interactions and methods specified with the
-            on_interval decorator
+        challengekeyid (str) : Id assigned by the server to identify the 
+            client. Used to login.
+        challengestr (str) : Token assigned by the server to identify the 
+            client. Used to login.
+        output_queue (asyncio.Queue) : Queue used to manage what is sent back
+            to the server websocket.
+        rooms (dict) : Dictionary with entries of {str : showdown.room.Room} 
+            that maps room_id's to Rooms the client is currently connected to.
+        max_room_logs (int) : The maximum number of logs stored in this client's
+            Room objects.
+        autologin (bool) : Bool denoting whether or not the client will 
+            automatically login on a call to the Client.start method. Can be 
+            set by using a keyword argument in Client.start
+        websocket (websockets.websocket) : The socket the client uses to 
+            communicate with the server. Initialized to None until 
+            Client.start() is called.
+        loop (asyncio event loop (Differs between platforms)) : The event loop
+            used for the client's websocket interactions and methods specified
+            with the on_interval decorator
     """
 
     def __init__(self, name='', password='', loop=None, max_room_logs=5000,
@@ -98,10 +101,14 @@ class Client(user.User):
     def start(self, autologin=True):
         """
         Starts the event loop stored in the Client's loop attribute.
+    
+        Returns:
+            bool : True if exited gracefully (on an interrupt), else False
 
         Args:
-            autologin (obj:`bool`, optional) : Bool denoting whether or not the client will
-                automatically login after connecting to the server. Defaults to True.
+            autologin (obj:`bool`, optional) : Bool denoting whether or not the
+            client will automatically login after connecting to the server. 
+            Defaults to True.
         """
         self.autologin = autologin
         try:
@@ -109,14 +116,19 @@ class Client(user.User):
         except KeyboardInterrupt:
             logger.info('Interrupt signal received. Closing client connection.')
             self.websocket.close() if self.websocket else None
-        logger.info('Event loop closed.')
+            logger.info('Event loop closed.')
+            return True
+        except:
+            import traceback
+            traceback.print_exc()
+            return False
 
     async def _handler(self):
         """
         |coro|
 
-        Creates websocket connection and adds any methods flagged by the on_interval
-        decorator to the event loop.
+        Creates websocket connection and adds any methods flagged by the 
+        on_interval decorator to the event loop.
         """
         async with websockets.connect(self.websocket_url) as self.websocket, \
                                   aiohttp.ClientSession() as session:
@@ -133,11 +145,17 @@ class Client(user.User):
 
     def on_interval(interval=0.0):
         """
-        A decorator to flag methods that the client should loop in an interval
+        A decorator creator to flag methods that the client should loop in an 
+        interval
 
         Params:
-            interval (obj:`float`, optional) :  The length of the interval to run the
-                method on in seconds
+            interval (obj:`float`, optional) :  The length of the interval to 
+            run the method on in seconds
+
+        Returns:
+            func - A decorator function that loops the passed in func on the 
+            specified interval, and flagged to be added to the client's event
+            loop.
 
         Example:
             class OUChecker(showdown.Client):
@@ -163,8 +181,8 @@ class Client(user.User):
         """
         |coro|
 
-        Waits for relevant output to appear in the client's output_queue attribute,
-        and sends it back to the server through websocket. 
+        Waits for relevant output to appear in the client's output_queue 
+        attribute, and sends it back to the server through websocket. 
         """
         out = await self.output_queue.get()
         now = time.time()
@@ -190,29 +208,37 @@ class Client(user.User):
         Adds output to be sent across the client's connection to the server.
 
         Params:
-            content (obj:`str` or obj:`list` of obj:`str`) : Content to be sent to the server.
-            delay (obj:`int` or obj:`float`, optional) : The minimum delay before sending
-                the content. If the client's output queue encounters this value before the
-                delay has passed, it will ignore the content.
-            lifespan (obj:`int` or obj:`float`, optional) : The maximum delay before content
-                is discarded from the client's output queue.
+            content (obj:`str` or obj:`list` of obj:`str`) : Content to be sent
+                to the server.
+            delay (obj:`int` or obj:`float`, optional) : The minimum delay
+                before sending the content. If the client's output queue 
+                encounters this value before the delay has passed, it will 
+                ignore the content.
+            lifespan (obj:`int` or obj:`float`, optional) : The maximum delay
+                before content is discarded from the client's output queue.
         """
-        assert type(lifespan) in (int, float), 'lifespan must be float or int'
-        assert type(delay) in (int, float), 'delay must be float or int'
-        assert delay < lifespan, 'Delay should be strictly less than lifespan'
-        assert delay >= 0 and lifespan >= 0, 'Lifespan and delay should be nonnegative'
+        assert type(lifespan) in (int, float), \
+            'lifespan must be float or int'
+        assert type(delay) in (int, float), \
+            'delay must be float or int'
+        assert delay < lifespan, \
+            'Delay should be strictly less than lifespan'
+        assert delay >= 0 and lifespan >= 0, \
+            'Lifespan and delay should be nonnegative'
+
         now = time.time()
         ignore_before = now + delay
         discard_after = now + lifespan
-        await self.output_queue.put(OutputToken(content, ignore_before, discard_after))
+        await self.output_queue.put(
+            OutputToken(content, ignore_before, discard_after))
 
     @on_interval()
     async def receiver(self):
         """
         |coro|
 
-        Awaits input from websocket and parses the important stuff. Subclasses can
-        hook into the input through Client.on_receive.
+        Awaits input from websocket and parses the important stuff. Subclasses 
+        can hook into the input through Client.on_receive.
         """
         socket_input = await self.websocket.recv()
         logger.debug('<<< Received:\n{}'.format(socket_input))
@@ -261,7 +287,8 @@ class Client(user.User):
             elif inp_type == 'pm':
                 author_str, recipient_str, *content = params
                 content = '|'.join(content)
-                private_message = message.PrivateMessage(author_str, recipient_str, content, client=self)
+                private_message = message.PrivateMessage(
+                    author_str, recipient_str, content, client=self)
                 await self.on_private_message(private_message)
 
             #Rooms
@@ -299,11 +326,12 @@ class Client(user.User):
         login_data = await self.server.login_async(self.name, 
             self.password, self.challstr, self.challengekeyid)
         if not login_data['actionsuccess']:
-            raise ValueError('Failed to log in as user `{}`. Raw login result:\n{}'.format(
-                self.name, result_data))
+            raise ValueError('Failed to log in as user `{}`.'
+                ' Raw login result:\n{}'.format(self.name, result_data))
         else:
             logger.info('Login succeeded')
-        await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, login_data['assertion']))
+        await self.websocket.send('["|/trn {},0,{}"]'
+            .format(self.name, login_data['assertion']))
         await self.on_login(login_data)
 
     async def set_avatar(self, avatar_id, delay=0, lifespan=math.inf):
@@ -323,18 +351,20 @@ class Client(user.User):
         """
         |coro|
         
-        Upload's the specified team_str to the server. Generally isn't needed on its
-        own, and is more useful as a subroutine for validate_team and search_battles.
+        Upload's the specified team_str to the server. Generally isn't needed 
+        on its own, and is more useful as a subroutine for validate_team and 
+        search_battles.
         """
         await self.add_output('|/utm {}'.format(team_str),
             delay=delay, lifespan=lifespan)
 
-    async def validate_team(self, team_str, battle_format, delay=0, lifespan=math.inf):
+    async def validate_team(self, team_str, battle_format, 
+        delay=0, lifespan=math.inf):
         """
         |coro|
         
-        Uploads the specified team_str to the server and validates for the format
-        specified by battle_format.
+        Uploads the specified team_str to the server and validates for the 
+        format specified by battle_format.
         """
         battle_format = utils.name_to_id(battle_format)
         team_str = team_str or 'null'
@@ -342,7 +372,8 @@ class Client(user.User):
         await self.add_output('|/vtm {}'.format(battle_format),
             delay=delay, lifespan=lifespan)
 
-    async def search_battles(self, team_str, battle_format, delay=0, lifespan=math.inf):
+    async def search_battles(self, team_str, battle_format, 
+        delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -350,8 +381,8 @@ class Client(user.User):
         specified by battle_format.
 
         Notes:
-            You can specify the team_str to be None or the empty string for tiers
-            like randombattles, where no team is needed to be provided.
+            You can specify the team_str to be None or the empty string for 
+            tiers like randombattles, where no team is needed to be provided.
         """
         battle_format = utils.name_to_id(battle_format)
         await self.upload_team(team_str, delay=delay, lifespan=lifespan)
@@ -364,7 +395,8 @@ class Client(user.User):
         
         Cancels a battle search.
         """
-        await self.add_output('|/cancelsearch', delay=delay, lifespan=lifespan)
+        await self.add_output('|/cancelsearch', 
+            delay=delay, lifespan=lifespan)
 
     # # # # # # # # # # # 
     # Room interactions #
@@ -377,7 +409,8 @@ class Client(user.User):
         Makes the client join  the room specified by the given room_id.
 
         Params:
-            room_id (obj:`str`) : The id of the room you want to join. Ex: 'lobby', 'ou'
+            room_id (obj:`str`) : The id of the room you want to join. 
+                Ex: 'lobby', 'ou'
 
         Notes:
             This method takes a str. Attempting to pass in a Room object will
@@ -416,15 +449,19 @@ class Client(user.User):
         Requests data from the server to save the battle specified by battle_id.
 
         Params:
-            battle_id (obj:`str`) : The id of the battle you want to save the replay for.
-                Ex: 'battle-gen7monotype-12345678'
+            battle_id (obj:`str`) : The id of the battle you want to save the 
+                replay for. Ex: 'battle-gen7monotype-12345678'
+
+        Returns:
+            None
         
         Notes:
             This method takes a str. Attempting to pass in a Battle object will
-            fail. Use the Battle.save_replay() method instead, or Client.save_replay(battle.id)
+            fail. Use the Battle.save_replay() method instead, or 
+            Client.save_replay(battle.id)
 
-            The actual upload is handled on the server's response through a query response with
-            type "savereplay".
+            The actual upload is handled on the server's response through a
+            query response with type "savereplay".
         """
         assert type(battle_id) is str, battle_id.startswith('battle-')
         await self.add_output('{}|/savereplay'.format(battle_id,
@@ -435,6 +472,9 @@ class Client(user.User):
         |coro|
         
         Forfeit the match specified by battle_id.
+
+        Returns:
+            None
 
         Params:
             battle_id (obj:`str`) : The id of the battle you want to forfeit.
@@ -447,54 +487,68 @@ class Client(user.User):
     # Messages  #
     # # # # # # #
 
-    async def private_message(self, user_name, content, strict=False, delay=0, lifespan=math.inf):
+    async def private_message(self, user_name, content, strict=False, 
+        delay=0, lifespan=math.inf):
         """
         |coro|
         
-        Sends a private message with content to the user specified by user_name. The client
-        must be logged in for this to work.
+        Sends a private message with content to the user specified by user_name.
+        The client must be logged in for this to work.
 
         Params:
-            user_name (obj:`str`) : The name of the user the client will send the message to.
+            user_name (obj:`str`) : The name of the user the client will send 
+                the message to.
             content (obj:`str`) : The content of the message.
-            strict (obj:`bool`, optional) : If this flag is set, passing in content more than
-                300 characters will raise an error. Otherwise, the message will be sent
-                truncated with a warning. This paramater defaults to False.
+            strict (obj:`bool`, optional) : If this flag is set, passing in 
+                content more than 300 characters will raise an error. Otherwise,
+                the message will be senttruncated with a warning. This paramater
+                 defaults to False.
 
         Notes:
-            Content should be less than 300 characters long. Longer messages will be
-            concatenated. If the strict flag is set, an error will be raised instead.
+            Content should be less than 300 characters long. Longer messages 
+            will be concatenated. If the strict flag is set, an error will be 
+            raised instead.
+
+        Returns:
+            None
 
         Raises:
-            ValueError: if the message is longer than 300 characters and the strict flag is 
-                set.
+            ValueError: if the message is longer than 300 characters and the 
+            strict flag is set.
         """
         content = utils.clean_message_content(content, strict=strict)
         user_id = utils.name_to_id(user_name)
         await self.add_output('|/msg {}, {}'.format(user_id, content),
             delay=0, lifespan=math.inf)
 
-    async def say(self, room_id, content, strict=False, delay=0, lifespan=math.inf):
+    async def say(self, room_id, content, strict=False,
+        delay=0, lifespan=math.inf):
         """
         |coro|
         
-        Sends a chat message to the room specified by room_id. The client must be logged in
-        for this to work
+        Sends a chat message to the room specified by room_id. The client must
+        be logged in for this to work
 
         Params:
-            room_id (obj:`str`) : The id of the room the client will send the message to.
+            room_id (obj:`str`) : The id of the room the client will send the 
+                message to.
             content (obj:`str`) : The content of the message.
-            strict (obj:`bool`, optional) : If this flag is set, passing in content more than
-                300 characters will raise an error. Otherwise, the message will be sent
-                truncated with a warning. This paramater defaults to False.
+            strict (obj:`bool`, optional) : If this flag is set, passing in 
+                content more than 300 characters will raise an error. Otherwise,
+                the message will be sent truncated with a warning. This 
+                paramater defaults to False.
 
         Notes:
-            Content should be less than 300 characters long. Longer messages will be
-            concatenated. If the strict flag is set, an error will be raised instead.
+            Content should be less than 300 characters long. Longer messages 
+            will be concatenated. If the strict flag is set, an error will be
+            raised instead.
+
+        Returns:
+            None
 
         Raises:
-            ValueError: if the message is longer than 300 characters and the strict flag is
-                set
+            ValueError: if the message is longer than 300 characters and the 
+                strict flag is set
         """
         content = utils.clean_message_content(content, strict=strict)
         if room_id == 'lobby':
@@ -510,24 +564,31 @@ class Client(user.User):
         """
         |coro|
         
-        Queries the server for a list of public rooms. The result will appear as a
-        query response with type 'rooms'.
+        Queries the server for a list of public rooms. The result will appear
+        as a query response with type 'rooms'.
+
+        Returns:
+            None
         """
         await self.add_output('|/cmd rooms',
             delay=delay, lifespan=lifespan)
 
-    async def query_battles(self, tier='', min_elo=None, delay=0, lifespan=math.inf):
+    async def query_battles(self, tier='', min_elo=None, 
+        delay=0, lifespan=math.inf):
         """
         |coro|
 
-        Queries the server for a list of public battles. The result will appears as a
-        query response with type 'roomlist'.
+        Queries the server for a list of public battles. The result will appears
+        as a query response with type 'roomlist'.
 
         Params:
             tier (obj:`str`) : The tier of the battle.
                 Ex: 'gen7monotype'
-            min_elo (obj:`int`) : Minimum elo of the battle. Defaults to None, which
-                will query for all battles regardless of rating.
+            min_elo (obj:`int`) : Minimum elo of the battle. Defaults to None, 
+                which will query for all battles regardless of rating.
+
+        Returns:
+            None
         """
         tier = utils.name_to_id(tier)
         output = '|/cmd roomlist {}'.format(utils.name_to_id(tier))
@@ -544,8 +605,8 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called immediately after the client starts it connection
-            with the server.
+        Hook for subclasses. Called immediately after the client starts it 
+        connection with the server.
 
         Notes:
             Does nothing by default.
@@ -559,7 +620,8 @@ class Client(user.User):
         Hook for subclasses. Called immediately after the client logs in.
 
         Params:
-            login_response (obj:`dict`) : The sent by the server upon login attempt. 
+            login_response (obj:`dict`) : The sent by the server upon login 
+                attempt. 
 
         Notes:
             Does nothing by default.
@@ -570,11 +632,12 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called when the client receives a room init message (generally
-            upon joining a new room)
+        Hook for subclasses. Called when the client receives a room init message
+        (generally upon joining a new room)
     
         Params:
-            room_obj (obj:`room.Room`) : Room object for the room that was initialized.
+            room_obj (obj:`room.Room`) : Room object for the room that was 
+                initialized.
 
         Notes:
             Does nothing by default.
@@ -585,11 +648,12 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called when the client receives a room deinit message (generally
-            upon leaving a room, or when a battle expires)
+        Hook for subclasses. Called when the client receives a room deinit 
+        message (generally upon leaving a room, or when a battle expires)
     
         Params:
-            room_obj (obj:`room.Room`) : Room object for the room that was initialized.
+            room_obj (obj:`room.Room`) : Room object for the room that was 
+                initialized.
 
         Notes:
             Does nothing by default.
@@ -600,12 +664,14 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called when the client receives query response from the server.
+        Hook for subclasses. Called when the client receives query response
+        from the server.
     
         Params:
             response_type (obj:`str`) : The response type.
                 Ex: 'savereplay', 'rooms', 'roomlist', 'userdetails'
-            data (obj:`dict`) : The json response from the server bundled with the response
+            data (obj:`dict`) : The json response from the server bundled with 
+                the response
 
         Notes:
             Does nothing by default.
@@ -619,8 +685,8 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a chat message.
     
         Params:
-            chat_message (obj:`showdown.message.ChatMessage`) : An object representing
-                the received message.
+            chat_message (obj:`showdown.message.ChatMessage`) : An object
+                representing the received message.
 
         Notes:
             Does nothing by default.
@@ -634,8 +700,8 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a private message.
     
         Params:
-            private_message (obj:`showdown.message.PrivateMessage`) : An object representing
-                the received message.
+            private_message (obj:`showdown.message.PrivateMessage`) : An object 
+                representing the received message.
 
         Notes:
             Does nothing by default.
@@ -646,17 +712,18 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called when the client receives any data from the server.
+        Hook for subclasses. Called when the client receives any data from the
+        server.
     
         Params:
-            room_id (obj:`str`) : ID of the room with which the information is associated
-                with. Messages with unspecified IDs default to 'lobby', though may not
-                necessarily be associated with 'lobby'.
+            room_id (obj:`str`) : ID of the room with which the information is 
+                associated with. Messages with unspecified IDs default to '
+                lobby', though may not necessarily be associated with 'lobby'.
             inp_type (obj:`str`) : The type of information received.
                 Ex: 'l' (user leave), 'j' (user join), 'c:' (chat message)
-            params (obj:`list`) : List of the parameters associated with the inp_type.
-                Ex: a user leave has params of ['zarel'], where 'zarel' represents the user id
-                of the user that left.
+            params (obj:`list`) : List of the parameters associated with the 
+                inp_type. Ex: a user leave has params of ['zarel'], where 'zarel'
+                represents the user id of the user that left.
 
         Notes:
             Does nothing by default.
