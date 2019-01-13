@@ -258,7 +258,7 @@ class Battle(Room):
 
     @utils.require_client
     async def switch(self, switch_id, turn_num, client=None, 
-        delay=0, lifespan=lifespan):
+        delay=0, lifespan=math.inf):
         """
         Uses the specified client or the object's client to switch into a
         different pokemon. The client must be one of the players in the battle 
