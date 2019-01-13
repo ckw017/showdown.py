@@ -11,27 +11,27 @@ with open('./examples/data/login.txt', 'rt') as f,\
     username, password = f.read().splitlines()
     ownername = o.read()
 
-class FollowerClient(showdown.Client):
+class ReplayClient(showdown.Client):
     def __init__(self, **kwargs):
         showdown.Client.__init__(self, **kwargs)
         self.owner = showdown.User(ownername, client=self)
 
     async def on_query_response(self, response_type, data):
-        logger.info(data)
-        if response_type == 'userdetails':
-            user_rooms = set(data['rooms'])
-            bot_rooms = set(self.rooms)
-            for room in user_rooms - bot_rooms:
-                await self.join(room)
-            for room in bot_rooms - user_rooms:
-                await self.leave(room)
+        if response_type == 'roomlist':
+            for battle_id in set(data['rooms']) - set(self.rooms):
+                self.rooms[battle_id] = None
+                await self.join(battle_id)
 
     async def on_private_message(self, pm):
         if pm.recipient == self:
             await pm.reply(pm.author.register_time)
 
-    @showdown.Client.on_interval(interval=3)
-    async def get_owner_details(self): 
-        await self.owner.request_user_details()
+    async def on_receive(self, room_id, inp_type, params):
+        if inp_type == 'win':
+            await self.save_replay(room_id)
 
-FollowerClient(name=username, password=password).start()
+    @showdown.Client.on_interval(interval=3)
+    async def check_monotype(self): 
+        await self.query_battles(tier='gen7ou', min_elo=1500)
+
+ReplayClient(name=username, password=password).start()
