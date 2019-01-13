@@ -9,11 +9,15 @@ import time
 import logging
 import traceback
 import warnings
-from . import message, room, server, user, utils
+import math
+from collections import namedtuple
 from functools import wraps
+from . import message, room, server, user, utils
 
 #Logging setup
 logger = logging.getLogger(__name__)
+
+OutputToken = namedtuple('OutputMessage', 'content ignore_before discard_after')
 
 class Client(user.User):
     """
@@ -100,7 +104,11 @@ class Client(user.User):
                 automatically login after connecting to the server. Defaults to True.
         """
         self.autologin = autologin
-        self.loop.run_until_complete(self._handler())
+        try:
+            self.loop.run_until_complete(self._handler())
+        except KeyboardInterrupt:
+            logger.info('Interrupt signal received. Closing client connection.')
+            self.websocket.close() if self.websocket else None
         logger.info('Event loop closed.')
 
     async def _handler(self):
@@ -159,21 +167,44 @@ class Client(user.User):
         and sends it back to the server through websocket. 
         """
         out = await self.output_queue.get()
+        now = time.time()
+        if out.ignore_before > now:
+            logger.debug('>>> Requeuing {}'.format(out))
+            await self.output_queue.put(out)
+            await asyncio.sleep(.05)
+            return
+        if out.discard_after < now:
+            logger.debug('>>> Discarding {}'.format(out))
+            await asyncio.sleep(.05)
+            return
+        out = out.content
         out = [out] if type(out) is str else out
         logger.info('>>> Sending:\n{}'.format(out))
         await self.websocket.send(json.dumps(out))
         await asyncio.sleep(len(out) * .5)
 
-    async def add_output(self, output_str):
+    async def add_output(self, content, delay=0, lifespan=math.inf):
         """
         |coro|
 
         Adds output to be sent across the client's connection to the server.
 
         Params:
-            output_str (obj:`str`) : String to be sent to the server.
+            content (obj:`str` or obj:`list` of obj:`str`) : Content to be sent to the server.
+            delay (obj:`int` or obj:`float`, optional) : The minimum delay before sending
+                the content. If the client's output queue encounters this value before the
+                delay has passed, it will ignore the content.
+            lifespan (obj:`int` or obj:`float`, optional) : The maximum delay before content
+                is discarded from the client's output queue.
         """
-        await self.output_queue.put(output_str)
+        assert type(lifespan) in (int, float), 'lifespan must be float or int'
+        assert type(delay) in (int, float), 'delay must be float or int'
+        assert delay < lifespan, 'Delay should be strictly less than lifespan'
+        assert delay >= 0 and lifespan >= 0, 'Lifespan and delay should be nonnegative'
+        now = time.time()
+        ignore_before = now + delay
+        discard_after = now + lifespan
+        await self.output_queue.put(OutputToken(content, ignore_before, discard_after))
 
     @on_interval()
     async def receiver(self):
@@ -245,7 +276,7 @@ class Client(user.User):
                     await self.on_room_deinit(self.rooms.pop(room_id))
 
             #add content to proper room
-            if room_id in self.rooms:
+            if isinstance(self.rooms.get(room_id, None), room.Room):
                 self.rooms[room_id].add_content(inp)
 
             await self.on_receive(room_id, inp_type, params)
@@ -275,28 +306,30 @@ class Client(user.User):
         await self.websocket.send('["|/trn {},0,{}"]'.format(self.name, login_data['assertion']))
         await self.on_login(login_data)
 
-    async def set_avatar(self, avatar_id):
+    async def set_avatar(self, avatar_id, delay=0, lifespan=math.inf):
         """
         |coro|
         
         Sets the user's avatar to the specified avatar_id value.
         """
-        await self.add_output('|/avatar {}'.format(avatar_id))
+        await self.add_output('|/avatar {}'.format(avatar_id), 
+            delay=delay, lifespan=lifespan)
 
     # # # # # # # # # # # #
     # Ladder interactions #
     # # # # # # # # # # # #
 
-    async def upload_team(self, team_str):
+    async def upload_team(self, team_str, delay=0, lifespan=math.inf):
         """
         |coro|
         
         Upload's the specified team_str to the server. Generally isn't needed on its
         own, and is more useful as a subroutine for validate_team and search_battles.
         """
-        await self.add_output('|/utm {}'.format(team_str))
+        await self.add_output('|/utm {}'.format(team_str),
+            delay=delay, lifespan=lifespan)
 
-    async def validate_team(self, team_str, battle_format):
+    async def validate_team(self, team_str, battle_format, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -305,10 +338,11 @@ class Client(user.User):
         """
         battle_format = utils.name_to_id(battle_format)
         team_str = team_str or 'null'
-        await self.upload_team(team_str)
-        await self.add_output('|/vtm {}'.format(battle_format))
+        await self.upload_team(team_str, delay=delay, lifespan=lifespan)
+        await self.add_output('|/vtm {}'.format(battle_format),
+            delay=delay, lifespan=lifespan)
 
-    async def search_battles(self, team_str, battle_format):
+    async def search_battles(self, team_str, battle_format, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -320,22 +354,23 @@ class Client(user.User):
             like randombattles, where no team is needed to be provided.
         """
         battle_format = utils.name_to_id(battle_format)
-        await self.upload_team(team_str)
-        await self.add_output('|/search {}'.format(battle_format))
+        await self.upload_team(team_str, delay=delay, lifespan=lifespan)
+        await self.add_output('|/search {}'.format(battle_format),
+            delay=delay, lifespan=lifespan)
 
-    async def cancel_search(self):
+    async def cancel_search(self, delay=0, lifespan=math.inf):
         """
         |coro|
         
         Cancels a battle search.
         """
-        await self.add_output('|/cancelsearch')
+        await self.add_output('|/cancelsearch', delay=delay, lifespan=lifespan)
 
     # # # # # # # # # # # 
     # Room interactions #
     # # # # # # # # # # # 
 
-    async def join(self, room_id):
+    async def join(self, room_id, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -349,9 +384,10 @@ class Client(user.User):
             fail. Use the Room.leave() method instead, or Client.leave(room.id)
         """
         assert type(room_id) is str, "Paramater room_id should be a string."
-        await self.add_output('|/join {}'.format(room_id))
+        await self.add_output('|/join {}'.format(room_id),
+            delay=delay, lifespan=lifespan)
 
-    async def leave(self, room_id):
+    async def leave(self, room_id, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -366,13 +402,14 @@ class Client(user.User):
             fail. Use the Room.leave() method instead, or Client.leave(room.id).
         """
         assert type(room_id) is str, "Parameter room_id should be a string."
-        await self.add_output('{}|/leave'.format(room_id))
+        await self.add_output('{}|/leave'.format(room_id),
+            delay=delay, lifespan=lifespan)
 
     # # # # # # # # # # # #
     # Battle interactions #
     # # # # # # # # # # # #
 
-    async def save_replay(self, battle_id):
+    async def save_replay(self, battle_id, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -390,9 +427,10 @@ class Client(user.User):
             type "savereplay".
         """
         assert type(battle_id) is str, battle_id.startswith('battle-')
-        await self.add_output('{}|/savereplay'.format(battle_id))
+        await self.add_output('{}|/savereplay'.format(battle_id,
+            delay=delay, lifespan=lifespan))
 
-    async def forfeit(self, battle_id):
+    async def forfeit(self, battle_id, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -402,13 +440,14 @@ class Client(user.User):
             battle_id (obj:`str`) : The id of the battle you want to forfeit.
                 Ex: 'battle-gen7monotype-12345678'
         """
-        await self.add_output('{}|/forfeit'.format(battle_id))
+        await self.add_output('{}|/forfeit'.format(battle_id),
+            delay=delay, lifespan=lifespan)
 
     # # # # # # # 
     # Messages  #
     # # # # # # #
 
-    async def private_message(self, user_name, content, strict=False):
+    async def private_message(self, user_name, content, strict=False, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -432,9 +471,10 @@ class Client(user.User):
         """
         content = utils.clean_message_content(content, strict=strict)
         user_id = utils.name_to_id(user_name)
-        await self.add_output('|/msg {}, {}'.format(user_id, content))
+        await self.add_output('|/msg {}, {}'.format(user_id, content),
+            delay=0, lifespan=math.inf)
 
-    async def say(self, room_id, content, strict=False):
+    async def say(self, room_id, content, strict=False, delay=0, lifespan=math.inf):
         """
         |coro|
         
@@ -459,22 +499,24 @@ class Client(user.User):
         content = utils.clean_message_content(content, strict=strict)
         if room_id == 'lobby':
             room_id = ''
-        await self.add_output('{}|{}'.format(room_id, content))
+        await self.add_output('{}|{}'.format(room_id, content),
+            delay=delay, lifespan=lifespan)
 
     # # # # # #
     # Queries #
     # # # # # #
 
-    async def query_rooms(self):
+    async def query_rooms(self, delay=0, lifespan=math.inf):
         """
         |coro|
         
         Queries the server for a list of public rooms. The result will appear as a
         query response with type 'rooms'.
         """
-        await self.add_output('|/cmd rooms')
+        await self.add_output('|/cmd rooms',
+            delay=delay, lifespan=lifespan)
 
-    async def query_battles(self, tier='', min_elo=None):
+    async def query_battles(self, tier='', min_elo=None, delay=0, lifespan=math.inf):
         """
         |coro|
 
@@ -491,7 +533,8 @@ class Client(user.User):
         output = '|/cmd roomlist {}'.format(utils.name_to_id(tier))
         if min_elo is not None:
             output += ', {}'.format(min_elo)
-        await self.add_output(output)
+        await self.add_output(output,
+            delay=delay, lifespan=lifespan)
 
     # # # # #
     # Hooks #

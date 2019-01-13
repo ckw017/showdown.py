@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Module for showdown's ChatMessage and PrivateMessage classes"""
 import time
+import math
 from . import user, utils
 
 class ChatMessage:
@@ -49,7 +50,7 @@ class ChatMessage:
             )
 
     @utils.require_client
-    async def reply(self, content, client=None):
+    async def reply(self, content, client=None, delay=0, lifespan=math.inf):
         """
         Uses the provided client or the object's client attribute to send a message
         to the message's room of origin.
@@ -60,7 +61,7 @@ class ChatMessage:
                 reply to the message. This will default to the message's client
                 object
         """
-        await client.say(self.room_id, content)
+        await client.say(self.room_id, content, delay=delay, lifespan=lifespan)
 
 class PrivateMessage:
     """
@@ -94,7 +95,7 @@ class PrivateMessage:
             )
 
     @utils.require_client
-    async def reply(self, content, client=None):
+    async def reply(self, content, client=None, delay=0, lifespan=math.inf):
         """
         Uses the provided client or the object's client attribute to send a message
         to the message's room of origin.
@@ -105,4 +106,4 @@ class PrivateMessage:
                 reply to the message. This will default to the message's client
                 object
         """
-        await client.private_message(self.author.id, content)
+        await client.private_message(self.author.id, content, delay=delay, lifespan=math.inf)

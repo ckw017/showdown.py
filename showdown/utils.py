@@ -4,6 +4,7 @@ import random
 import string
 import inspect
 import warnings
+import datetime
 from functools import wraps
 
 def require_client(func): 
@@ -21,6 +22,15 @@ def require_client(func):
             kwargs['client'] = client
             return await func(self, *args, **kwargs)
     return wrapper
+
+def strip_prefix(s):
+    if s and s[0].lower() not in string.ascii_lowercase:
+        s = s[1:]
+    return s
+
+def timestamp_to_hh_mm_ss(timestamp):
+    dt = datetime.datetime.utcfromtimestamp(timestamp)
+    return dt.strftime('%H:%M:%S')
 
 def clean_message_content(content, strict=False):
     content = str(content)

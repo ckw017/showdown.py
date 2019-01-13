@@ -2,6 +2,7 @@ import json
 import re
 import requests
 import string
+import math
 from . import utils
 
 USER_DATA_URL_BASE = 'https://pokemonshowdown.com/users/{user_id}.json'
@@ -42,12 +43,13 @@ class User:
         return self.id == utils.name_to_id(username)
 
     @utils.require_client
-    async def send_message(self, content, client=None):
-        await client.private_message(self.id, content)
+    async def send_message(self, content, client=None, delay=0, lifespan=math.inf):
+        await client.private_message(self.id, content, delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def request_user_details(self, client=None):
-        await self.client.add_output('|/cmd userdetails {}'.format(self.id))
+    async def request_user_details(self, client=None, delay=0, lifespan=math.inf):
+        await self.client.add_output('|/cmd userdetails {}'.format(self.id),
+            delay=delay, lifespan=lifespan)
 
     def _get_user_data(self, force_update=False):
         if not force_update and self._user_data is not None:

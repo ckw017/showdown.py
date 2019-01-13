@@ -1,3 +1,4 @@
+import math
 from collections import deque
 from . import utils, user
 
@@ -19,7 +20,7 @@ class Room:
         return hash(self.id)
 
     def __repr__(self):
-        return '<{} {}>'.format(self.__class__.__name__, self.title)
+        return '<{} `{}`>'.format(self.__class__.__name__, self.title)
 
     def add_content(self, content):
         self.logs.append(content)
@@ -61,20 +62,20 @@ class Room:
             self.add_user(user_str)
 
     @utils.require_client
-    async def request_auth(self, client=None):
-        await client.add_output('{}|/roomauth'.format(self.id))
+    async def request_auth(self, client=None, delay=0, lifespan=math.inf):
+        await client.add_output('{}|/roomauth'.format(self.id), delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def say(self, content, client=None):
-        await client.say(self.id, content)
+    async def say(self, content, client=None, delay=0, lifespan=math.inf):
+        await client.say(self.id, content, delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def join(self, client=None):
-        await client.join(self.id)
+    async def join(self, client=None, delay=0, lifespan=math.inf):
+        await client.join(self.id, delay=0, lifespan=lifespan)
 
     @utils.require_client
-    async def leave(self, client=None):
-        await client.leave(self.id)
+    async def leave(self, client=None, delay=0, lifespan=math.inf):
+        await client.leave(self.id, delay=delay, lifespan=lifespan)
 
 class Battle(Room):
     def __init__(self, room_id, client=None, max_logs=5000):
@@ -118,12 +119,12 @@ class Battle(Room):
             self.ended = True
 
     @utils.require_client
-    async def save_replay(self, client=None):
-        await client.save_replay(self.id)
+    async def save_replay(self, client=None, delay=0, lifespan=math.inf):
+        await client.save_replay(self.id, delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def forfeit(self, client=None):
-        await client.forfeit(self.battle_id)
+    async def forfeit(self, client=None, delay=0, lifespan=math.inf):
+        await client.forfeit(self.battle_id, delay=delay, lifespan=lifespan)
 
     @utils.require_client
     async def set_timer_on(self, client=None):
@@ -134,15 +135,15 @@ class Battle(Room):
         pass
 
     @utils.require_client
-    async def switch(self, client=None):
+    async def switch(self, turn_num, client=None, delay=0, lifespan=math.inf):
         pass #["battle-gen7randombattle-847809604|/choose switch 5|68"]
 
     @utils.require_client
-    async def move(self, client=None):
+    async def move(self, client=None, delay=0, lifespan=math.inf):
         pass
 
     @utils.require_client
-    async def undo(self, client=None):
+    async def undo(self, client=None, delay=0, lifespan=math.inf):
         pass
 
 class_map = {
