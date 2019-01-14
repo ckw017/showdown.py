@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+An example client that echoes back any message that is 
+private messaged to it
+"""
 import showdown
 import logging
 
