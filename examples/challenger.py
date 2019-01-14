@@ -10,7 +10,9 @@ import asyncio
 from pprint import pprint
 
 logging.basicConfig(level=logging.INFO)
-with open('./examples/data/login.txt', 'rt') as f:
+with open('./examples/data/login.txt', 'rt') as f,\
+     open('./examples/data/mono-ghost.txt', 'rt') as team:
+    ghost_team = team.read()
     username, password = f.read().strip().splitlines()
 
 class ChallengeClient(showdown.Client):
@@ -24,6 +26,8 @@ class ChallengeClient(showdown.Client):
         for user, tier in incoming.items():
             if 'random' in tier:
                 await self.accept_challenge(user, 'null')
+            if 'gen7monotype' in tier:
+                await self.accept_challenge(user, ghost_team)
 
     async def on_room_init(self, room_obj):
         if room_obj.id.startswith('battle-'):
