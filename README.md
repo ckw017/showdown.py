@@ -10,6 +10,10 @@ Examples have been provided in the ``./examples directory``. Make sure to create
 The client on its own doesn't do very much, and is instead intended to be extended and modified. This can be done through various "hook" coroutines left in the base class. The following program uses the ``on_private_message`` hook to echo back the content of any PMs it receives.
 
 ```python3
+"""
+An example client that echoes back any message that is 
+private messaged to it
+"""
 import showdown
 import logging
 
@@ -23,7 +27,7 @@ class EchoClient(showdown.Client):
         if pm.recipient == self:
             await pm.reply(pm.content)
 
-EchoClient(name=username, password=password).start()
+EchoClient(name=username, password=password).start(
 ```
 
 Other hooks include ``on_connect``, ``on_login``, ``on_room_init``, ``on_room_deinit``, ``on_query_response`` and ``on_chat_message``.
