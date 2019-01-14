@@ -219,5 +219,72 @@ class Server:
         result = requests.post(self.action_url, data=data)
         return utils.parse_http_input(result.text)
 
+    @require_session
+    async def get_ladder_async(self, user_id, session=None):
+        """
+        |coro|
+        Gets the ratings for the user specified by user_id on this
+        server. Includes more detailed information than User.get_rating
+
+        Returns:
+            :obj:`list` : A list of dicts representing a user's ratings
+                relevant battle formats.
+                Ex: [{'col1': '1033',
+                      'elo': '1736.1765984494',
+                      'entryid': '15753610',
+                      'formatid': 'gen7monotype',
+                      'gxe': '80.7',
+                      'l': '415',
+                      'r': '1769.8943143527',
+                      'rd': '25',
+                      'rpr': '1769.8943143527',
+                      'rprd': '25.876418629631',
+                      'rpsigma': '0',
+                      'rptime': '1547456400',
+                      'sigma': '0',
+                      't': '0',
+                      'userid': 'argus2spooky',
+                      'username': 'Argus2Spooky',
+                      'w': '618'}]
+        """
+        data = {
+            'act' : 'ladderget',
+            'user' : user_id
+        }
+        async with self.session.post(self.action_url, data=data) as result:
+            return utils.parse_http_input(await result.text())
+
+    def get_ladder(self, user_id):
+        """
+        Gets the user's ratings on the server for the specified server.
+        Includes more detailed information than User.get_ratings
+
+        Examples:
+            from pprint import pprint
+            >>> pprint(Server().get_ladder('argus2spooky'))
+            [{'col1': '1033',
+              'elo': '1736.1765984494',
+              'entryid': '15753610',
+              'formatid': 'gen7monotype',
+              'gxe': '80.7',
+              'l': '415',
+              'r': '1769.8943143527',
+              'rd': '25',
+              'rpr': '1769.8943143527',
+              'rprd': '25.876418629631',
+              'rpsigma': '0',
+              'rptime': '1547456400',
+              'sigma': '0',
+              't': '0',
+              'userid': 'argus2spooky',
+              'username': 'Argus2Spooky',
+              'w': '618'}]
+        """
+        params = {
+            'act' : 'ladderget',
+            'user' : user_id
+        }
+        result = requests.get(self.action_url, params=params).text
+        return utils.parse_http_input(result)
 
             
