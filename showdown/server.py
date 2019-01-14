@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Module for Server objects"""
-
 import random
 import string
 import requests
@@ -17,6 +16,10 @@ logger = logging.getLogger(__name__)
 SERVER_INFO_URL_BASE = 'https://pokemonshowdown.com/servers/{server_id}.json'
 ACTION_URL_BASE =  'https://play.pokemonshowdown.com/~~{server_id}/action.php'
 WEBSOCKET_URL_BASE = 'ws://{server_hostname}/showdown/{num_triplet}/{char_octet}/websocket'
+
+REPLAY_HEADERS = {
+    'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+}
 
 def get_host(server_id):
     """
@@ -79,10 +82,11 @@ def require_session(func):
     async def wrapper(self, *args, **kwargs):
         session = kwargs.get('session', None) or getattr(self, 'session', None) 
         if session is None:
-            raise Exception("You can't use {0}.{1} without setting an aiohttp ClientSession. "
-                            "This can be done with {0}.set_session method. You can also "
-                            "use the keyword argument {0}.{1}(session=your_session)."
-                            .format(self.__class__.__name__, func.__name__))
+            raise Exception(\
+                "You can't use {0}.{1} without setting an aiohttp ClientSession. "
+                "This can be done with {0}.set_session method. You can also "
+                "use the keyword argument {0}.{1}(session=your_session)."
+                .format(self.__class__.__name__, func.__name__))
         else:
             kwargs['session'] = session
             return await func(self, *args, **kwargs)
@@ -152,27 +156,39 @@ class Server:
     @require_session
     async def save_replay_async(self, battle_data, session=None):
         """
+        |coro|
+
         Makes an asynchronous post request to upload the replay specified by 
-        battle_data.
+        battle_data. Use save_replay to do so synchronously.
         """
-        headers = {
-            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
-        }
         battle_data['act'] = 'uploadreplay'
         async with self.session.post(self.action_url, data=battle_data, 
-            headers=headers) as result:
+            headers=REPLAY_HEADERS) as result:
             logger.info('^^^ Saved replay for `{}`, outcome: {}'.format(
-                    battle_data['id'],
-                    await result.text()
-                )
-            )
+                    battle_data['id'], await result.text()))
             return result
 
-    @require_session
-    async def login_async(self, name, password, challstr, challengekeyid, session=None):
+    def save_replay(self, battle_data):
         """
+        Makes an synchronous post request to upload the replay specified by 
+        battle_data. Use save_replay_async to do so asynchronously.
+        """
+        battle_data['act'] = 'uploadreplay'
+        result = requests.post(self.action_url, data=battle_data,
+            headers=REPLAY_HEADERS)
+        logger.info('^^^ Saved replay for `{}`, outcome: {}'.format(
+                battle_data['id'], result.text))
+        return result
+
+    @require_session
+    async def login_async(self, name, password, challstr, challengekeyid,
+        session=None):
+        """
+        |coro|
+
         Makes an asynchronous post request to obtain login data for the user
-        specified by the method's parameters.
+        specified by the method's parameters. Use login to do so 
+        asynchronously.
         """
         data = {
             'act': 'login',
@@ -183,4 +199,23 @@ class Server:
         }
         async with self.session.post(self.action_url, data=data) as result:
             return utils.parse_http_input(await result.text())
+
+
+    def login(self, name, password, challstr, challengekeyid):
+        """
+        Makes an synchronous post request to obtain login data for the user
+        specified by the method's parameters. Use login_async to do so
+        synchronously.
+        """
+        data = {
+            'act': 'login',
+            'name': name,
+            'pass': password,
+            'challenge': challstr,
+            'challengekeyid': challengekeyid
+        }
+        result = requests.post(self.action_url, data=data)
+        return utils.parse_http_input(result.text)
+
+
             
