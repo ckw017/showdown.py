@@ -1,0 +1,63 @@
+Iolite (Sableye) (M) @ Leftovers  
+Ability: Prankster  
+EVs: 252 HP / 228 Def / 28 Spe  
+Bold Nature  
+IVs: 0 Atk  
+- Knock Off  
+- Will-O-Wisp  
+- Recover  
+- Taunt  
+
+Argus (Doublade) @ Eviolite  
+Ability: No Guard  
+Shiny: Yes  
+EVs: 252 HP / 252 Atk / 4 SpD  
+Brave Nature  
+IVs: 0 Spe  
+- Swords Dance  
+- Gyro Ball  
+- Shadow Sneak  
+- Shadow Claw  
+
+Hazey (Jellicent) (M) @ Leftovers  
+Ability: Cursed Body  
+Shiny: Yes  
+EVs: 252 HP / 252 SpD / 4 Spe  
+Calm Nature  
+IVs: 0 Atk  
+- Toxic  
+- Scald  
+- Recover  
+- Acid Armor  
+
+Nathan (Golurk) @ Focus Sash  
+Ability: No Guard  
+Shiny: Yes  
+EVs: 40 HP / 252 Atk / 216 Spe  
+Adamant Nature  
+- Stealth Rock  
+- Stone Edge  
+- DynamicPunch  
+- Curse  
+
+Ghast (Gengar) (M) @ Focus Sash  
+Ability: Cursed Body  
+Shiny: Yes  
+EVs: 4 HP / 252 SpA / 252 Spe  
+Timid Nature  
+IVs: 0 Atk  
+- Destiny Bond  
+- Sludge Bomb  
+- Shadow Ball  
+- Energy Ball  
+
+Kammi (Chandelure) (F) @ Choice Scarf  
+Ability: Infiltrator  
+EVs: 252 SpA / 4 SpD / 252 Spe  
+Modest Nature  
+IVs: 0 Atk
+- Flamethrower  
+- Shadow Ball  
+- Energy Ball  
+- Trick  
+

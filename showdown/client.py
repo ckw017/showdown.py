@@ -385,45 +385,46 @@ class Client(user.User):
     # Ladder interactions #
     # # # # # # # # # # # #
 
-    async def upload_team(self, team_str, delay=0, lifespan=math.inf):
+    async def upload_team(self, team, delay=0, lifespan=math.inf):
         """
         |coro|
         
-        Upload's the specified team_str to the server. Generally isn't needed 
+        Upload's the specified team to the server. Generally isn't needed 
         on its own, and is more useful as a subroutine for validate_team and 
         search_battles.
         """
+        team_str = utils.to_team_str(team)
         await self.add_output('|/utm {}'.format(team_str),
             delay=delay, lifespan=lifespan)
 
-    async def validate_team(self, team_str, battle_format, 
+    async def validate_team(self, team, battle_format, 
         delay=0, lifespan=math.inf):
         """
         |coro|
         
-        Uploads the specified team_str to the server and validates for the 
+        Uploads the specified team to the server and validates for the 
         format specified by battle_format.
         """
         battle_format = utils.name_to_id(battle_format)
-        team_str = team_str or 'null'
-        await self.upload_team(team_str, delay=delay, lifespan=lifespan)
+        team = team or 'null'
+        await self.upload_team(team, delay=delay, lifespan=lifespan)
         await self.add_output('|/vtm {}'.format(battle_format),
             delay=delay, lifespan=lifespan)
 
-    async def search_battles(self, team_str, battle_format, 
+    async def search_battles(self, team, battle_format, 
         delay=0, lifespan=math.inf):
         """
         |coro|
         
-        Uploads the specified team_str and searches for battles for the format 
+        Uploads the specified team and searches for battles for the format 
         specified by battle_format.
 
         Notes:
-            You can specify the team_str to be None or the empty string for 
+            You can specify the team to be None or the empty string for 
             tiers like randombattles, where no team is needed to be provided.
         """
         battle_format = utils.name_to_id(battle_format)
-        await self.upload_team(team_str, delay=delay, lifespan=lifespan)
+        await self.upload_team(team, delay=delay, lifespan=lifespan)
         await self.add_output('|/search {}'.format(battle_format),
             delay=delay, lifespan=lifespan)
 
@@ -598,12 +599,12 @@ class Client(user.User):
     # Challenges  #
     # # # # # # # #
 
-    async def send_challenge(self, player_id, team_str, tier):
+    async def send_challenge(self, player_id, team, tier):
         """
         Challenge the player specified by player_id, with the team encoded in
-        team_str, and in the corresponding tier.
+        team, and in the corresponding tier.
         """
-        await self.upload_team(team_str)
+        await self.upload_team(team)
         await self.use_command('', 'challenge', player_id, tier)
 
     async def cancel_challenge(self):
@@ -613,11 +614,11 @@ class Client(user.User):
         await self.use_command('', 'cancelchallenge')
 
 
-    async def accept_challenge(self, player_id, team_str):
+    async def accept_challenge(self, player_id, team):
         """
         Accept a challenge from the player specified by player_id
         """
-        await self.upload_team(team_str)
+        await self.upload_team(team)
         await self.use_command('', 'accept', player_id)
 
     async def reject_challenge(self, player_id):

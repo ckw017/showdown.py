@@ -7,6 +7,7 @@ import string
 import inspect
 import warnings
 import datetime
+import traceback
 from functools import wraps
 
 def require_client(func): 
@@ -162,3 +163,94 @@ def parse_socket_input(socket_input):
                 result.append((room_id, event))
         return result
     raise ValueError('Unexpected socket input:\n{}'.format(socket_input))
+
+def _extract_nums(row):
+    """
+    Maybe if I indicate this to be a private method,
+    I don't have to take responsibility for it.
+    """
+    stat_list = ['hp', 'atk', 'def', 'spa', 'spd', 'spe']
+    stats = [''] * 6
+    row = row[4:].strip().lower()
+    num_stats = map(lambda s: s.strip(), row.split('/'))
+    for num_stat in num_stats:
+        try:
+            num, stat = num_stat.split()
+            stats[stat_list.index(stat)] = num
+        except:
+            pass
+    return stats
+
+def _to_mon_str(mon):
+    """
+    If it works, it works.
+    """
+    mon = mon.strip()
+    name_row, *rest = mon.splitlines()
+    gender = ''
+    if '(F)' in name_row:
+        gender = 'F'
+        name_row = name_row.replace('(F)', '')
+    if '(M)' in name_row:
+        gender = 'M'
+        name_row = name_row.replace('(M)', '') 
+    if '@' in name_row:
+        name_row, item = name_row.split('@')
+    else:
+        item = ''
+    if '(' in name_row:
+        name, species = name_row.split('(')
+    else:
+        name, species = name_row, ''
+    item = name_to_id(item)
+    species = name_to_id(species)
+    name = name.strip()
+    ivs = [''] * 6
+    evs = [''] * 6
+    ability = ''
+    nature = ''
+    shiny = ''
+    moves = []
+    happiness = ''
+    level = ''
+    for row in rest:
+        if 'Ability:' in row:
+            ability = name_to_id(row.replace('Ability:', ''))
+        elif 'EVs:' in row:
+            evs = _extract_nums(row)
+        elif 'IVs:' in row:
+            ivs = _extract_nums(row)
+        elif '- ' in row:
+            moves.append(name_to_id(row))
+        elif 'Shiny:' in row:
+            shiny = 'S'
+        elif 'Nature' in row:
+            nature = row.replace(' Nature', '')
+        elif 'Level:' in row:
+            level = name_to_id(row.replace('Level:', ''))
+        elif 'Happiness:' in row:
+            happiness = name_to_id(row.replace('Happiness:', ''))
+    ivs = ','.join(ivs)
+    evs = ','.join(evs)
+    moves = ','.join(moves)
+    sureverything = map(lambda s:s.strip(),
+        (name,species,item,ability,moves,nature,evs,
+            gender,ivs,shiny,level,happiness))
+    return '|'.join(sureverything)
+
+def to_team_str(team):
+    """
+    Parses a human readable team and packs into the server's
+    expected format.
+    """
+    team = team.strip()
+    if not team:
+        return 'null'
+    try:
+        mon_strs = map(_to_mon_str, team.split('\n\n'))
+        return ']'.join(mon_strs)
+    except:
+        traceback.print_exc()
+        print('Problem occurred while parsing:')
+        print(team)
+        return 'null'
