@@ -164,6 +164,8 @@ class Server:
         battle_data. Use save_replay to do so synchronously.
         """
         battle_data['act'] = 'uploadreplay'
+        if self.id != 'showdown':
+            battle_data['id'] = '{}-{}'.format(self.id, battle_data['id'])
         async with self.session.post(self.action_url, data=battle_data, 
             headers=REPLAY_HEADERS) as result:
             logger.info('^^^ Saved replay for `{}`, outcome: {}'.format(
@@ -176,6 +178,8 @@ class Server:
         battle_data. Use save_replay_async to do so asynchronously.
         """
         battle_data['act'] = 'uploadreplay'
+        if self.id != 'showdown':
+            battle_data['id'] = '{}-{}'.format(self.id, battle_data['id'])
         result = requests.post(self.action_url, data=battle_data,
             headers=REPLAY_HEADERS)
         logger.info('^^^ Saved replay for `{}`, outcome: {}'.format(
