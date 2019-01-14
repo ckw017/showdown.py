@@ -147,6 +147,8 @@ class Server:
     @utils.require_client
     async def request_rooms(self, client=None):
         """
+        |coro|
+        
         Uses the specified client or the object's client attribute to request
         A list of the rooms on the server. The server will respond with a
         query response of type 'rooms'

@@ -91,6 +91,8 @@ class User:
     @utils.require_client
     async def challenge(self, team, tier, client=None):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to send
         a challenge to the user represented by this object.
         """
@@ -99,6 +101,8 @@ class User:
     @utils.require_client
     async def cancel_challenge(self):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to cancel
         a challenge to the user represented by this object.
         """
@@ -107,6 +111,8 @@ class User:
     @utils.require_client
     async def reject_challenge(self, client=None):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to reject
         a challenge from the user represented by this object.
         """
@@ -115,6 +121,8 @@ class User:
     @utils.require_client
     async def accept_challenge(self, team, client=None):
         """
+        |coro|
+        
         Uses the specified client or the object's client attribute to accept
         a challenge from the user represented by this object.
         """

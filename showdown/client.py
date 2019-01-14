@@ -10,7 +10,6 @@ import logging
 import traceback
 import warnings
 import math
-from collections import namedtuple
 from functools import wraps
 from . import message, room, server, user, utils
 
@@ -18,8 +17,12 @@ from . import message, room, server, user, utils
 logger = logging.getLogger(__name__)
 
 class OutputToken:
+    """
+    Class used with the client's output queue to schedule when outputs should
+    be used, delayed, or discarded.
+    """
     def __init__(self, content, ignore_before, discard_after):
-        self.content = content
+        self.content = [content] if type(content) is str else content
         self.ignore_before = ignore_before
         self.discard_after = discard_after
         self.sent = False
@@ -601,6 +604,8 @@ class Client(user.User):
 
     async def send_challenge(self, player_id, team, tier):
         """
+        |coro|
+        
         Challenge the player specified by player_id, with the team encoded in
         team, and in the corresponding tier.
         """
@@ -609,6 +614,8 @@ class Client(user.User):
 
     async def cancel_challenge(self):
         """
+        |coro|
+
         Cancel a challenge to the player.
         """
         await self.use_command('', 'cancelchallenge')
@@ -616,6 +623,8 @@ class Client(user.User):
 
     async def accept_challenge(self, player_id, team):
         """
+        |coro|
+
         Accept a challenge from the player specified by player_id
         """
         await self.upload_team(team)

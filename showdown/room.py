@@ -219,6 +219,8 @@ class Battle(Room):
     @utils.require_client
     async def save_replay(self, client=None, delay=0, lifespan=math.inf):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to save a
         replay of the battle. The battle must be ended before for this method
         to work. 
@@ -228,6 +230,8 @@ class Battle(Room):
     @utils.require_client
     async def forfeit(self, client=None, delay=0, lifespan=math.inf):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to forfeit
         the battle. The client must be one of the players in the battle for this
         to work.
@@ -239,6 +243,8 @@ class Battle(Room):
     @utils.require_client
     async def set_timer_on(self, client=None, delay=0, lifespan=math.inf):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to turn on
         the battle timer. The client must be one of the players in the battle 
         for this to work.
@@ -249,6 +255,8 @@ class Battle(Room):
     @utils.require_client
     async def set_timer_off(self, client=None, delay=0, lifespan=math.inf):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to turn off
         the battle timer. The client must be one of the players in the battle 
         for this to work.
@@ -260,6 +268,8 @@ class Battle(Room):
     async def switch(self, switch_id, turn_num, client=None, 
         delay=0, lifespan=math.inf):
         """
+        |coro|
+
         Uses the specified client or the object's client to switch into a
         different pokemon. The client must be one of the players in the battle 
         for this to work.
@@ -271,6 +281,8 @@ class Battle(Room):
     async def move(self, move_id, turn_num, mega=False, client=None,
         delay=0, lifespan=math.inf):
         """
+        |coro|
+
         Uses the specified client or the object's client attribute to turn on
         the battle timer. The client must be one of the players in the battle 
         for this to work.
@@ -282,6 +294,8 @@ class Battle(Room):
     @utils.require_client
     async def undo(self, client=None, delay=0, lifespan=math.inf):
         """
+        |coro|
+        
         Uses the specified client or the object's client attribute to undo their
         last move or switch. The player must be on of the players in the battle
         for this to work.
