@@ -37,6 +37,6 @@ class ReplayClient(showdown.Client):
 
     @showdown.Client.on_interval(interval=3)
     async def check_monotype(self): 
-        await self.query_battles(tier='gen7ou', min_elo=1500)
+        await self.query_battles(tier='gen7ou', lifespan=3)
 
 ReplayClient(name=username, password=password).start(autologin=False)
