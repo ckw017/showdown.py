@@ -109,7 +109,7 @@ class Client(user.User):
         self.rooms = {}
         self.challenges = {};
         self.max_room_logs = max_room_logs
-        self.autologin = False
+        self.autologin = True
         self.websocket = None #Initialized in _handler
         self.session = None
         self.loop = loop or asyncio.get_event_loop()
@@ -128,7 +128,16 @@ class Client(user.User):
         """
         self.autologin = autologin
         try:
-            self.loop.run_until_complete(self._handler())
+            if self.loop.is_running():
+                asyncio.ensure_future(
+                    self._handler(),
+                    loop=self.loop
+                )
+                logger.info("The client's event loop was already running. "
+                            "The client will run as a task on the loop.")
+                return True
+            else:
+                self.loop.run_until_complete(self._handler())
         except KeyboardInterrupt:
             logger.info('Interrupt signal received. Closing client connection.')
             self.websocket.close() if self.websocket else None
