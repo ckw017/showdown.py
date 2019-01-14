@@ -93,7 +93,7 @@ class Client(user.User):
             with the on_interval decorator
     """
 
-    def __init__(self, name='', password='', loop=None, max_room_logs=5000,
+    def __init__(self, name='Guest', password='', loop=None, max_room_logs=5000,
                     server_id='showdown', server_host=None):
         super().__init__(name, client=self)
 
@@ -213,7 +213,6 @@ class Client(user.User):
         if out.expired():
             logger.info('>>> Discarding {}'.format(out))
             out.discarded = True
-            await asyncio.sleep(.05)
             return
         content = [out.content] if type(out.content) is str else out.content
         logger.info('>>> Sending:\n{}'.format(content))
@@ -270,7 +269,10 @@ class Client(user.User):
         #Showdown sends this response on initial connection
         if socket_input == 'o':
             logger.info('Connected on {}'.format(self.websocket_url))
-            await self.on_connect()
+            asyncio.ensure_future(
+                self.on_connect(),
+                loop=self.loop
+            )
             return
 
         inputs = utils.parse_socket_input(socket_input)
@@ -293,14 +295,22 @@ class Client(user.User):
             elif inp_type == 'queryresponse':
                 response_type, data = params[0], '|'.join(params[1:])
                 data = json.loads(data)
-                await self.on_query_response(response_type, data)
+                asyncio.ensure_future(
+                    self.on_query_response(response_type, data),
+                    loop=self.loop
+                )
                 if response_type == 'savereplay':
-                    await self.server.save_replay_async(data)
+                    asyncio.ensure_future(
+                        self.server.save_replay_async(data),
+                        loop = self.loop)
 
             #Challenge updates
             elif inp_type == 'updatechallenges':
                 self.challenges = json.loads(params[0])
-                await self.on_challenge_update(self.challenges)
+                asyncio.ensure_future(
+                    self.on_challenge_update(self.challenges),
+                    loop = self.loop
+                )
 
             #Messages
             elif inp_type == 'c:' or inp_type == 'c':
@@ -311,13 +321,19 @@ class Client(user.User):
                 content = '|'.join(content)
                 chat_message = message.ChatMessage(room_id, timestamp,
                     author_str, content, client=self)
-                await self.on_chat_message(chat_message)
+                asyncio.ensure_future(
+                    self.on_chat_message(chat_message),
+                    loop=self.loop
+                )
             elif inp_type == 'pm':
                 author_str, recipient_str, *content = params
                 content = '|'.join(content)
                 private_message = message.PrivateMessage(
                     author_str, recipient_str, content, client=self)
-                await self.on_private_message(private_message)
+                asyncio.ensure_future(
+                    self.on_private_message(private_message),
+                    loop = self.loop
+                )
 
             #Rooms
             elif inp_type == 'init':
@@ -325,16 +341,25 @@ class Client(user.User):
                 room_obj = room.class_map.get(room_type, room.Room)(
                     room_id, client=self, max_logs=self.max_room_logs)
                 self.rooms[room_id] = room_obj
-                await self.on_room_init(room_obj)
+                asyncio.ensure_future(
+                    self.on_room_init(room_obj),
+                    loop=self.loop
+                )
             elif inp_type == 'deinit':
                 if room_id in self.rooms:
-                    await self.on_room_deinit(self.rooms.pop(room_id))
+                    asyncio.ensure_future(
+                        self.on_room_deinit(self.rooms.pop(room_id)),
+                        loop = self.loop
+                    )
 
             #add content to proper room
             if isinstance(self.rooms.get(room_id, None), room.Room):
                 self.rooms[room_id].add_content(inp)
 
-            await self.on_receive(room_id, inp_type, params)
+            asyncio.ensure_future(
+                self.on_receive(room_id, inp_type, params),
+                loop=self.loop
+            )
 
     async def login(self):
         """
@@ -360,7 +385,10 @@ class Client(user.User):
             logger.info('Login succeeded')
         await self.websocket.send('["|/trn {},0,{}"]'
             .format(self.name, login_data['assertion']))
-        await self.on_login(login_data)
+        asyncio.ensure_future(
+            self.on_login(login_data),
+            loop=self.loop
+        )
 
     async def set_avatar(self, avatar_id, delay=0, lifespan=math.inf):
         """
