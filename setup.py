@@ -1,4 +1,5 @@
 import setuptools
+import re
 
 with open('README.md', 'r') as readme:
     long_desc = readme.read()
