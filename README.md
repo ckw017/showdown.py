@@ -15,13 +15,10 @@ An example client that echoes back any message that is
 private messaged to it
 """
 import showdown
-import logging
 
-logging.basicConfig(level=logging.INFO)
 with open('./examples/data/login.txt', 'rt') as f:
     username, password = f.read().strip().splitlines()
-
-
+   
 class EchoClient(showdown.Client):
     async def on_private_message(self, pm):
         if pm.recipient == self:
@@ -32,7 +29,7 @@ EchoClient(name=username, password=password).start(
 
 Other hooks include ``on_connect``, ``on_login``, ``on_room_init``, ``on_room_deinit``, ``on_query_response`` and ``on_chat_message``.
 
-These hooks are by no means all inclusive (Showdown has somewhere upwards of 40 different types of messages it uses to interact with clients), and so a catch-all hook `on_receive` is also present. Each hook is given its own task on the event loop, so you don't have to worry about any tasks blocking each other.
+These hooks are by no means all inclusive (Showdown has somewhere upwards of 40 different types of messages it uses to interact with clients in its protocol), and so a catch-all hook `on_receive` is also present. Each hook is given its own task on the event loop, so you don't have to worry about any tasks blocking each other.
 
 The bot can also be used for collecting data on battles. The following bot anonymously joins ongoing matches in the format 'OU' and saves replays of them when a user finishes.
 
@@ -42,10 +39,6 @@ An example client that joins all OU battles
 and saves replays.
 """
 import showdown
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 with open('./examples/data/login.txt', 'rt') as f:
     username, password = f.read().strip().splitlines()
