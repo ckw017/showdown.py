@@ -15,7 +15,7 @@ if not version:
     raise RuntimeError('version is not set')
 
 setuptools.setup(
-    name='showdown.py',
+    name='showdownpy',
     version=version,
     author='Chris K. W.',
     author_email='chriskw.xyz@gmail.com',
