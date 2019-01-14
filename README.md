@@ -2,7 +2,7 @@
 A client for [Pokemon Showdown!](https://pokemonshowdown.com/) for Python 3.5+. This was written to make it easier to write bots, interact with users, moderate chat rooms, and collect data.
 
 # Setup
-Install the package with ``pip3 install --user showdownpy``. This will also install the package's ``websocket`` and ``aiohttp`` dependencies if you do not already have them.
+Install the package with ``pip3 install --user showdownpy``. This will also install the package's ``websockets`` and ``aiohttp`` dependencies if you do not already have them.
 
 # Example
 Examples have been provided in the ./examples directory. Make sure to create your own versions of the login.txt and owner.txt files in ./examples/data/ directory. Example files have been provided.
