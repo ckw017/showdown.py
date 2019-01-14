@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as reqf:
     requirements = reqf.read().splitlines()
 
 version = ''
-with open('discord/__init__.py') as f:
+with open('showdown/__init__.py') as f:
     version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(1)
 
 if not version:
@@ -18,7 +18,7 @@ setuptools.setup(
     version=version,
     author='Chris K. W.',
     author_email='chriskw.xyz@gmail.com',
-    license='MIT'
+    license='MIT',
     include_package_data=True,
     description='An extendable client for interacting with Pokemon Showdown',
     long_description=long_desc,
@@ -35,7 +35,7 @@ setuptools.setup(
         'Natural Language :: English',
         'Topic :: Internet',
         'Topic :: Utilities',
-        'Topic :: Games/Entertainment :: Turn Based Strategy'.
+        'Topic :: Games/Entertainment :: Turn Based Strategy',
         'Topic :: Communications :: Chat'
     ]
 )
