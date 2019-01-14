@@ -32,4 +32,42 @@ EchoClient(name=username, password=password).start(
 
 Other hooks include ``on_connect``, ``on_login``, ``on_room_init``, ``on_room_deinit``, ``on_query_response`` and ``on_chat_message``.
 
-These hooks are by no means all inclusive (Showdown has somewhere upwards of 40 different types of messages it uses to interact with clients), and so a catch-all hook `on_receive` is also present.
+These hooks are by no means all inclusive (Showdown has somewhere upwards of 40 different types of messages it uses to interact with clients), and so a catch-all hook `on_receive` is also present. Each hook is given its own task on the event loop, so you don't have to worry about any tasks blocking each other.
+
+The bot can also be used for collecting data on battles. The following bot anonymously joins ongoing matches in the format 'OU' and saves replays of them when a user finishes.
+
+```python3
+"""
+An example client that joins all OU battles
+and saves replays.
+"""
+import showdown
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+with open('./examples/data/login.txt', 'rt') as f:
+    username, password = f.read().strip().splitlines()
+
+class ReplayClient(showdown.Client):
+    async def on_query_response(self, response_type, data):
+        if response_type == 'roomlist':
+            for battle_id in set(data['rooms']) - set(self.rooms):
+                await self.join(battle_id)
+
+    async def on_receive(self, room_id, inp_type, params):
+        if inp_type == 'win':
+            await self.save_replay(room_id)
+
+    @showdown.Client.on_interval(interval=3)
+    async def check_ou(self): 
+        await self.query_battles(tier='gen7ou', lifespan=3)
+
+ReplayClient(name=username, password=password).start(autologin=False)
+```
+
+Is is recommended that you save local copies of these matches rather than upload them, as to not overwhelm Showdown's replay server.
+
+# Contributions
+This package is still a work in progress, and any contributions would be great! I'm currently prioritizing documentation over new features, but if you have an idea for something let me know. Feel free to share anything you make with the client and if its succint enough I may add it to the pool of examples.
