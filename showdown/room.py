@@ -232,7 +232,7 @@ class Battle(Room):
         the battle. The client must be one of the players in the battle for this
         to work.
         """
-        await client.forfeit(self.battle_id, delay=delay, lifespan=lifespan)
+        await client.forfeit(self.id, delay=delay, lifespan=lifespan)
 
     #TODO: Test everything below here
 

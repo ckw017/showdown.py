@@ -104,6 +104,7 @@ class Client(user.User):
         self.challengekeyid, self.challstr = None, None
         self.output_queue = asyncio.Queue()
         self.rooms = {}
+        self.challenges = {};
         self.max_room_logs = max_room_logs
         self.autologin = False
         self.websocket = None #Initialized in _handler
@@ -293,6 +294,10 @@ class Client(user.User):
                 if response_type == 'savereplay':
                     await self.server.save_replay_async(data)
 
+            #Challenge updates
+            elif inp_type == 'updatechallenges':
+                self.challenges = json.loads(params[0])
+                await self.on_challenge_update(self.challenges)
 
             #Messages
             elif inp_type == 'c:' or inp_type == 'c':
@@ -589,6 +594,38 @@ class Client(user.User):
         await self.add_output('{}|{}'.format(room_id, content),
             delay=delay, lifespan=lifespan)
 
+    # # # # # # # #
+    # Challenges  #
+    # # # # # # # #
+
+    async def send_challenge(self, player_id, team_str, tier):
+        """
+        Challenge the player specified by player_id, with the team encoded in
+        team_str, and in the corresponding tier.
+        """
+        await self.upload_team(team_str)
+        await self.use_command('', 'challenge', player_id, tier)
+
+    async def cancel_challenge(self):
+        """
+        Cancel a challenge to the player.
+        """
+        await self.use_command('', 'cancelchallenge')
+
+
+    async def accept_challenge(self, player_id, team_str):
+        """
+        Accept a challenge from the player specified by player_id
+        """
+        await self.upload_team(team_str)
+        await self.use_command('', 'accept', player_id)
+
+    async def reject_challenge(self, player_id):
+        """
+        Deny a challenge from the player specified by player_id
+        """
+        await self.user_command('', 'reject', player_id)
+
     # # # # # #
     # Queries #
     # # # # # #
@@ -708,6 +745,24 @@ class Client(user.User):
 
         Notes:
             Does nothing by default.
+        """
+        pass
+
+    async def on_challenge_update(self, challenge_data):
+        """
+        |coro|
+
+        Hook for subclasses. Called when the client receives a challenge
+        update from the server.
+
+        Params:
+            response_type (:obj:`dict`) : A dict containing information about
+                active incoming and outgoing challenges.
+                Ex: {"challengesFrom":{"scriptkitty":"gen7randombattle"},
+                     "challengeTo":{"to":"scriptkitty","format":"gen7randombattle"}
+
+        Notes:
+            Does nothing by default
         """
         pass
 

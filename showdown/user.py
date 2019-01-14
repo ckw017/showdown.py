@@ -89,6 +89,38 @@ class User:
         return self.id == utils.name_to_id(name)
 
     @utils.require_client
+    async def challenge(self, team_str, tier, client=None):
+        """
+        Uses the specified client or the object's client attribute to send
+        a challenge to the user represented by this object.
+        """
+        await client.send_challenge(self.id, team_str, tier)
+
+    @utils.require_client
+    async def cancel_challenge(self):
+        """
+        Uses the specified client or the object's client attribute to cancel
+        a challenge to the user represented by this object.
+        """
+        await client.cancel_challenge()
+
+    @utils.require_client
+    async def reject_challenge(self, client=None):
+        """
+        Uses the specified client or the object's client attribute to reject
+        a challenge from the user represented by this object.
+        """
+        await client.reject_challenge(self.id)
+
+    @utils.require_client
+    async def accept_challenge(self, team_str, client=None):
+        """
+        Uses the specified client or the object's client attribute to accept
+        a challenge from the user represented by this object.
+        """
+        await client.accept_challenge(self.id, team_str)
+
+    @utils.require_client
     async def send_message(self, content, strict=False, client=None, 
         delay=0, lifespan=math.inf):
         """
