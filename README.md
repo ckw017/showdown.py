@@ -67,7 +67,7 @@ class ReplayClient(showdown.Client):
 ReplayClient(name=username, password=password).start(autologin=False)
 ```
 
-Is is recommended that you save local copies of these matches rather than upload them, as to not overwhelm Showdown's replay server.
+It is recommended that you save local copies of these matches rather than upload them, as to not overwhelm Showdown's replay server.
 
 # Contributions
 This package is still a work in progress, and any contributions would be great! I'm currently prioritizing documentation over new features, but if you have an idea for something let me know. Feel free to share anything you make with the client and if its succint enough I may add it to the pool of examples.
