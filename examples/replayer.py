@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+An example client that joins all OU battles rated
+above 1500 anonymously and saves replays.
+"""
 import showdown
 import logging
 import warnings
@@ -34,4 +39,4 @@ class ReplayClient(showdown.Client):
     async def check_monotype(self): 
         await self.query_battles(tier='gen7ou', min_elo=1500)
 
-ReplayClient(name=username, password=password).start()
+ReplayClient(name=username, password=password).start(autologin=False)
