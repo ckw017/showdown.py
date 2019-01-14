@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+An example client that joins any rooms that its
+specified owner does.
+"""
 import showdown
 import logging
 import warnings
