@@ -1,42 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-An example client that joins all OU battles rated
-above 1500 anonymously and saves replays.
+An example client that joins all OU battles
+and saves replays.
 """
 import showdown
 import logging
-import warnings
-from pprint import pprint
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-with open('./examples/data/login.txt', 'rt') as f,\
-     open('./examples/data/owner.txt', 'rt') as o:
+with open('./examples/data/login.txt', 'rt') as f:
     username, password = f.read().strip().splitlines()
-    ownername = o.read().strip()
 
 class ReplayClient(showdown.Client):
-    def __init__(self, **kwargs):
-        showdown.Client.__init__(self, **kwargs)
-        self.owner = showdown.User(ownername, client=self)
-
     async def on_query_response(self, response_type, data):
         if response_type == 'roomlist':
             for battle_id in set(data['rooms']) - set(self.rooms):
-                self.rooms[battle_id] = None
                 await self.join(battle_id)
-
-    async def on_private_message(self, pm):
-        if pm.recipient == self:
-            await pm.reply(pm.author.register_time)
 
     async def on_receive(self, room_id, inp_type, params):
         if inp_type == 'win':
             await self.save_replay(room_id)
 
     @showdown.Client.on_interval(interval=3)
-    async def check_monotype(self): 
+    async def check_ou(self): 
         await self.query_battles(tier='gen7ou', lifespan=3)
 
 ReplayClient(name=username, password=password).start(autologin=False)
