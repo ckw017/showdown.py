@@ -158,7 +158,7 @@ def parse_socket_input(socket_input):
                 room_id = loaded[0][1:] or 'lobby'
                 raw_events = loaded[1:]
             else:
-                room_id = 'lobby'
+                room_id = ''
                 raw_events = loaded
             for event in raw_events:
                 result.append((room_id, event))

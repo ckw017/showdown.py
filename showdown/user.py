@@ -32,7 +32,10 @@ class User:
             object's utility methods
     '''
     def __init__(self, user_str, client=None):
-        if user_str[0].lower() not in string.ascii_lowercase:
+        if not user_str:
+            self.auth = ' '
+            name = ''
+        elif user_str[0].lower() not in string.ascii_lowercase:
             self.auth = user_str[0]
             name = user_str[1:]
         else:
@@ -122,7 +125,7 @@ class User:
     async def accept_challenge(self, team, client=None):
         """
         |coro|
-        
+
         Uses the specified client or the object's client attribute to accept
         a challenge from the user represented by this object.
         """
@@ -237,6 +240,7 @@ class User:
         """
         self._get_user_data()
         return self._user_data['username']
+
 
     def get_ladder(self, server_id=None):
         """

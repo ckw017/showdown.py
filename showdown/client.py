@@ -93,7 +93,7 @@ class Client(user.User):
             with the on_interval decorator
     """
 
-    def __init__(self, name='Guest', password='', loop=None, max_room_logs=5000,
+    def __init__(self, name='', password='', *, loop=None, max_room_logs=5000,
                     server_id='showdown', server_host=None):
         super().__init__(name, client=self)
 
