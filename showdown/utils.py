@@ -62,6 +62,8 @@ def timestamp_to_hh_mm_ss(timestamp):
         '06:56:07'
 
     """
+    if not timestamp:
+        return 'No timestamp'
     dt = datetime.datetime.utcfromtimestamp(timestamp)
     return dt.strftime('%H:%M:%S')
 
