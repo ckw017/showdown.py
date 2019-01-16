@@ -1,5 +1,5 @@
 # Intro
-A client for [Pokemon Showdown!](https://pokemonshowdown.com/) for Python 3.5+. This was written to make it easier to write bots, interact with users, moderate chat rooms, and collect data.
+A client for [Pokemon Showdown!](https://pokemonshowdown.com/) for Python 3.4 and 3.5. This was written to make it easier to write bots, interact with users, moderate chat rooms, and collect data.
 
 # Setup
 Install the package with ``pip3 install --user showdownpy``. This will also install the package's ``websockets`` and ``aiohttp`` dependencies if you do not already have them.
@@ -24,7 +24,7 @@ class EchoClient(showdown.Client):
         if pm.recipient == self:
             await pm.reply(pm.content)
 
-EchoClient(name=username, password=password).start(
+EchoClient(name=username, password=password).start()
 ```
 
 Other hooks include ``on_connect``, ``on_login``, ``on_room_init``, ``on_room_deinit``, ``on_query_response`` and ``on_chat_message``.
@@ -51,8 +51,8 @@ class ReplayClient(showdown.Client):
 
     async def on_receive(self, room_id, inp_type, params):
         if inp_type == 'win':
-            await self.save_replay(room_id)
-
+            with open('./data/' + room_id, 'wt') as f:
+                f.write('\n'.join(self.rooms[room_id].logs))
     @showdown.Client.on_interval(interval=3)
     async def check_ou(self): 
         await self.query_battles(tier='gen7ou', lifespan=3)
