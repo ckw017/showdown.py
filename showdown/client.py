@@ -11,7 +11,7 @@ import traceback
 import warnings
 import math
 from functools import wraps
-from . import message, room, server, user, utils
+from . import message, room, server, user, utils, docutils
 
 #Logging setup
 logger = logging.getLogger(__name__)
@@ -117,14 +117,14 @@ class Client(user.User):
     def start(self, autologin=True):
         """
         Starts the event loop stored in the Client's loop attribute.
-    
-        Returns:
-            bool : True if exited gracefully (on an interrupt), else False
 
         Args:
             autologin (:obj:`bool`, optional) : Bool denoting whether or not the
-            client will automatically login after connecting to the server. 
-            Defaults to True.
+                client will automatically login after connecting to the server. 
+                Defaults to True.
+    
+        Returns:
+            bool : True if exited gracefully (on an interrupt), else False
         """
         self.autologin = autologin
         try:
@@ -148,10 +148,9 @@ class Client(user.User):
             traceback.print_exc()
             return False
 
+    @docutils.format()
     async def _handler(self):
         """
-        |coro|
-
         Creates websocket connection and adds any methods flagged by the 
         on_interval decorator to the event loop.
         """
@@ -173,21 +172,21 @@ class Client(user.User):
         A decorator creator to flag methods that the client should loop in an 
         interval
 
-        Params:
+        Args:
             interval (:obj:`float`, optional) :  The length of the interval to 
-            run the method on in seconds
+                run the method on in seconds. Defaults to 0.0.
 
         Returns:
             func - A decorator function that loops the passed in func on the 
-            specified interval, and flagged to be added to the client's event
-            loop.
+                specified interval, and flagged to be added to the client's
+                event loop.
 
         Example:
             class OUChecker(showdown.Client):
                 @on_interval(interval=3.0):
                 async def check_ou_matches(self):
                     '''Checks the ou ladder ever 3 seconds'''
-                    await self.query_battles(tier='gen7ou')
+                    await self.query_battles(battle_format='gen7ou')
         """
         def decorator(func):
             @wraps(func)
@@ -229,21 +228,16 @@ class Client(user.User):
         out.sent = True
         await asyncio.sleep(len(content) * .5)
 
+    @docutils.format()
     async def add_output(self, content, delay=0, lifespan=math.inf):
         """
-        |coro|
-
         Adds output to be sent across the client's connection to the server.
 
-        Params:
+        Args:
             content (:obj:`str` or obj:`list` of obj:`str`) : Content to be sent
                 to the server.
-            delay (:obj:`int` or obj:`float`, optional) : The minimum delay
-                before sending the content. If the client's output queue 
-                encounters this value before the delay has passed, it will 
-                ignore the content.
-            lifespan (:obj:`int` or obj:`float`, optional) : The maximum delay
-                before content is discarded from the client's output queue.
+            {delay}
+            {lifespan}
 
         Returns:
             namedtuple : Token representing the content to be sent.
@@ -399,23 +393,33 @@ class Client(user.User):
             loop=self.loop
         )
 
+    @docutils.format()
     async def set_avatar(self, avatar_id, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Sets the user's avatar to the specified avatar_id value.
+
+        Args:
+            {avatar_id}
+            {delay}
+            {lifespan}
         """
         await self.add_output('|/avatar {}'.format(avatar_id), 
             delay=delay, lifespan=lifespan)
 
+    @docutils.format()
     async def use_command(self, room_id, command_name, *args,
         delay=0, lifespan=math.inf):
         """
-        |coro|
-
         Sends a generic command to the specified room. For example, to send the
         `/mute user, No spamming!` command in the Monotype room, you can use
         client.use_command('monotype', 'mute', 'user', 'No spamming!')
+
+        Args:
+            {room_id}
+            command_name (:obj:`str`) : The name of the command to use.
+                Ex: 'leave', 'mute', 'forfeit'
+            {delay}
+            {lifespan}
         """
         await self.add_output('{}|/{} {}'.format(
             room_id, command_name, ', '.join(args)),
@@ -425,25 +429,33 @@ class Client(user.User):
     # Ladder interactions #
     # # # # # # # # # # # #
 
-    async def upload_team(self, team, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def upload_team(self, team, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Upload's the specified team to the server. Generally isn't needed 
         on its own, and is more useful as a subroutine for validate_team and 
         search_battles.
+
+        Args:
+            {team}
+            {delay}
+            {lifespan}
         """
         team_str = utils.to_team_str(team)
         await self.add_output('|/utm {}'.format(team_str),
             delay=delay, lifespan=lifespan)
 
-    async def validate_team(self, team, battle_format, 
+    @docutils.format()
+    async def validate_team(self, team, battle_format, *,
         delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Uploads the specified team to the server and validates for the 
         format specified by battle_format.
+
+        Args:
+            {team}
+            {delay}
+            {lifespan}
         """
         battle_format = utils.name_to_id(battle_format)
         team = team or 'null'
@@ -451,28 +463,35 @@ class Client(user.User):
         await self.add_output('|/vtm {}'.format(battle_format),
             delay=delay, lifespan=lifespan)
 
+    @docutils.format()
     async def search_battles(self, team, battle_format, 
         delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Uploads the specified team and searches for battles for the format 
         specified by battle_format.
+        
+        Args:
+            {team}
+            {delay}
+            {lifespan}
 
         Notes:
             You can specify the team to be None or the empty string for 
-            tiers like randombattles, where no team is needed to be provided.
+            battle_formats like randombattles, where no team is needed to be provided.
         """
         battle_format = utils.name_to_id(battle_format)
         await self.upload_team(team, delay=delay, lifespan=lifespan)
         await self.add_output('|/search {}'.format(battle_format),
             delay=delay, lifespan=lifespan)
 
-    async def cancel_search(self, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def cancel_search(self, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Cancels a battle search.
+
+        Args:
+            {delay}
+            {lifespan}
         """
         await self.add_output('|/cancelsearch', 
             delay=delay, lifespan=lifespan)
@@ -481,15 +500,15 @@ class Client(user.User):
     # Room interactions #
     # # # # # # # # # # # 
 
-    async def join(self, room_id, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def join(self, room_id, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Makes the client join  the room specified by the given room_id.
 
-        Params:
-            room_id (:obj:`str`) : The id of the room you want to join. 
-                Ex: 'lobby', 'ou'
+        Args:
+            {room_id}
+            {delay}
+            {lifespan}
 
         Notes:
             This method takes a str. Attempting to pass in a Room object will
@@ -499,15 +518,15 @@ class Client(user.User):
         await self.add_output('|/join {}'.format(room_id),
             delay=delay, lifespan=lifespan)
 
-    async def leave(self, room_id, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def leave(self, room_id, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Makes client leave the room specified by the given room_id.
 
-        Params:
-            room_id (:obj:`str`) : The id of the room you want to leave. 
-                Ex: 'lobby', 'ou'
+        Args:
+            {room_id}
+            {delay}
+            {lifespan}
 
         Notes:
             This method takes a str. Attempting to pass in a Room object will
@@ -521,15 +540,15 @@ class Client(user.User):
     # Battle interactions #
     # # # # # # # # # # # #
 
-    async def save_replay(self, battle_id, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def save_replay(self, battle_id, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Requests data from the server to save the battle specified by battle_id.
 
-        Params:
-            battle_id (:obj:`str`) : The id of the battle you want to save the 
-                replay for. Ex: 'battle-gen7monotype-12345678'
+        Args:
+            {battle_id}
+            {delay}
+            {lifespan}
 
         Returns:
             None
@@ -546,16 +565,15 @@ class Client(user.User):
         await self.add_output('{}|/savereplay'.format(battle_id,
             delay=delay, lifespan=lifespan))
 
-    async def forfeit(self, battle_id, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def forfeit(self, battle_id, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Forfeit the match specified by battle_id.
 
         Returns:
             None
 
-        Params:
+        Args:
             battle_id (:obj:`str`) : The id of the battle you want to forfeit.
                 Ex: 'battle-gen7monotype-12345678'
         """
@@ -566,68 +584,55 @@ class Client(user.User):
     # Messages  #
     # # # # # # #
 
-    async def private_message(self, user_name, content, strict=False, 
+    @docutils.format()
+    async def private_message(self, user_name, content, strict=False, *,
         delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Sends a private message with content to the user specified by user_name.
         The client must be logged in for this to work.
 
-        Params:
+        Args:
             user_name (:obj:`str`) : The name of the user the client will send 
                 the message to.
-            content (:obj:`str`) : The content of the message.
-            strict (:obj:`bool`, optional) : If this flag is set, passing in 
-                content more than 300 characters will raise an error. Otherwise,
-                the message will be senttruncated with a warning. This paramater
-                 defaults to False.
+            {content}
+            {strict}
 
         Notes:
-            Content should be less than 300 characters long. Longer messages 
-            will be concatenated. If the strict flag is set, an error will be 
-            raised instead.
+            {strict_notes}
 
         Returns:
             None
 
         Raises:
-            ValueError: if the message is longer than 300 characters and the 
-            strict flag is set.
+            {strict_error}
         """
         content = utils.clean_message_content(content, strict=strict)
         user_id = utils.name_to_id(user_name)
         await self.add_output('|/msg {}, {}'.format(user_id, content),
             delay=0, lifespan=math.inf)
 
+    @docutils.format()
     async def say(self, room_id, content, strict=False,
         delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Sends a chat message to the room specified by room_id. The client must
         be logged in for this to work
 
-        Params:
-            room_id (:obj:`str`) : The id of the room the client will send the 
-                message to.
-            content (:obj:`str`) : The content of the message.
-            strict (:obj:`bool`, optional) : If this flag is set, passing in 
-                content more than 300 characters will raise an error. Otherwise,
-                the message will be sent truncated with a warning. This 
-                paramater defaults to False.
+        Args:
+            {room_id}
+            {content}
+            {strict}
+            {delay}
+            {lifespan}
 
         Notes:
-            Content should be less than 300 characters long. Longer messages 
-            will be concatenated. If the strict flag is set, an error will be
-            raised instead.
+            {strict_notes}
 
         Returns:
             None
 
         Raises:
-            ValueError: if the message is longer than 300 characters and the 
-                strict flag is set
+            {strict_error}
         """
         content = utils.clean_message_content(content, strict=strict)
         if room_id == 'lobby':
@@ -639,50 +644,73 @@ class Client(user.User):
     # Challenges  #
     # # # # # # # #
 
-    async def send_challenge(self, player_id, team, tier):
+    @docutils.format()
+    async def send_challenge(self, user_id, team, battle_format):
         """
-        |coro|
+        Challenge the player specified by user_id, with the team encoded in
+        team, and in the corresponding battle_format.
+
+        Args:
+            {user_id}
+            {team}
+            {battle_format}
+
+        """
+        await self.upload_team(team)
+        await self.use_command('', 'challenge', user_id, battle_format)
+
+    @docutils.format()
+    async def cancel_challenge(self, *, delay=0, lifespan=math.inf):
+        """
+        Cancel an outgoing challenge.
         
-        Challenge the player specified by player_id, with the team encoded in
-        team, and in the corresponding tier.
+        Args:
+            {delay}
+            {lifespan}
+        """
+        await self.use_command('', 'cancelchallenge', delay=delay, lifespan=lifespan)
+
+    @docutils.format()
+    async def accept_challenge(self, user_id, team, *, delay=0, lifespan=math.inf):
+        """
+        Accept a challenge from the player specified by user_id
+
+        Args:
+            {user_id}
+            {team}
+            {delay}
+            {lifespan}
         """
         await self.upload_team(team)
-        await self.use_command('', 'challenge', player_id, tier)
+        await self.use_command('', 'accept', user_id,
+            delay=delay, lifespan=lifespan)
 
-    async def cancel_challenge(self):
+    @docutils.format()
+    async def reject_challenge(self, user_id, *, delay=0, lifespan=math.inf):
         """
-        |coro|
+        Reject a challenge from the player specified by user_id
 
-        Cancel a challenge to the player.
+        Args:
+            {user_id}
+            {delay}
+            {lifespan}
         """
-        await self.use_command('', 'cancelchallenge')
-
-
-    async def accept_challenge(self, player_id, team):
-        """
-        |coro|
-
-        Accept a challenge from the player specified by player_id
-        """
-        await self.upload_team(team)
-        await self.use_command('', 'accept', player_id)
-
-    async def reject_challenge(self, player_id):
-        """
-        Deny a challenge from the player specified by player_id
-        """
-        await self.user_command('', 'reject', player_id)
+        await self.user_command('', 'reject', user_id,
+            delay=delay, lifespan=lifespan)
 
     # # # # # #
     # Queries #
     # # # # # #
 
-    async def query_rooms(self, delay=0, lifespan=math.inf):
+    @docutils.format()
+    async def query_rooms(self, *, delay=0, lifespan=math.inf):
         """
-        |coro|
-        
         Queries the server for a list of public rooms. The result will appear
         as a query response with type 'rooms'.
+        
+        Args:
+            {delay}
+            {lifespan}
 
         Returns:
             None
@@ -690,25 +718,25 @@ class Client(user.User):
         await self.add_output('|/cmd rooms',
             delay=delay, lifespan=lifespan)
 
-    async def query_battles(self, tier='', min_elo=None, 
+    @docutils.format()
+    async def query_battles(self, battle_format='', min_elo=None, 
         delay=0, lifespan=math.inf):
         """
-        |coro|
-
         Queries the server for a list of public battles. The result will appears
         as a query response with type 'roomlist'.
 
-        Params:
-            tier (:obj:`str`) : The tier of the battle.
-                Ex: 'gen7monotype'
+        Args:
+            {battle_format}
             min_elo (:obj:`int`) : Minimum elo of the battle. Defaults to None, 
                 which will query for all battles regardless of rating.
+            {delay}
+            {lifespan}
 
         Returns:
             None
         """
-        tier = utils.name_to_id(tier)
-        output = '|/cmd roomlist {}'.format(utils.name_to_id(tier))
+        battle_format = utils.name_to_id(battle_format)
+        output = '|/cmd roomlist {}'.format(utils.name_to_id(battle_format))
         if min_elo is not None:
             output += ', {}'.format(min_elo)
         await self.add_output(output,
@@ -736,7 +764,7 @@ class Client(user.User):
 
         Hook for subclasses. Called immediately after the client logs in.
 
-        Params:
+        Args:
             login_response (:obj:`dict`) : The sent by the server upon login 
                 attempt. 
 
@@ -752,7 +780,7 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a room init message
         (generally upon joining a new room)
     
-        Params:
+        Args:
             room_obj (:obj:`room.Room`) : Room object for the room that was 
                 initialized.
 
@@ -768,26 +796,26 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a room deinit 
         message (generally upon leaving a room, or when a battle expires)
     
-        Params:
+        Args:
             room_obj (:obj:`room.Room`) : Room object for the room that was 
-                initialized.
+                deinitialized.
 
         Notes:
             Does nothing by default.
         """
         pass
 
-    async def on_query_response(self, response_type, data):
+    async def on_query_response(self, query_type, response):
         """
         |coro|
 
         Hook for subclasses. Called when the client receives query response
         from the server.
     
-        Params:
-            response_type (:obj:`str`) : The response type.
+        Args:
+            query_type (:obj:`str`) : The query type.
                 Ex: 'savereplay', 'rooms', 'roomlist', 'userdetails'
-            data (:obj:`dict`) : The json response from the server bundled with 
+            response (:obj:`dict`) : The json response from the server bundled with 
                 the response
 
         Notes:
@@ -802,14 +830,17 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a challenge
         update from the server.
 
-        Params:
-            response_type (:obj:`dict`) : A dict containing information about
+        Args:
+            challenge_data (:obj:`dict`) : A dict containing information about
                 active incoming and outgoing challenges.
                 Ex: {"challengesFrom":{"scriptkitty":"gen7randombattle"},
                      "challengeTo":{"to":"scriptkitty","format":"gen7randombattle"}
 
         Notes:
-            Does nothing by default
+            Does nothing by default.
+            Note that challengesFrom is plural, since a client can receive multiple
+            challenges, but challengesTo is singular, since only one challenge
+            can be sent at a time.
         """
         pass
 
@@ -819,7 +850,7 @@ class Client(user.User):
 
         Hook for subclasses. Called when the client receives a chat message.
     
-        Params:
+        Args:
             chat_message (:obj:`showdown.message.ChatMessage`) : An object
                 representing the received message.
 
@@ -834,7 +865,7 @@ class Client(user.User):
 
         Hook for subclasses. Called when the client receives a private message.
     
-        Params:
+        Args:
             private_message (:obj:`showdown.message.PrivateMessage`) : An object 
                 representing the received message.
 
@@ -850,7 +881,7 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives any data from the
         server.
     
-        Params:
+        Args:
             room_id (:obj:`str`) : ID of the room with which the information is 
                 associated with. Messages with unspecified IDs default to '
                 lobby', though may not necessarily be associated with 'lobby'.
