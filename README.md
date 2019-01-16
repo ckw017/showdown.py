@@ -24,7 +24,7 @@ class EchoClient(showdown.Client):
         if pm.recipient == self:
             await pm.reply(pm.content)
 
-EchoClient(name=username, password=password).start(
+EchoClient(name=username, password=password).start()
 ```
 
 Other hooks include ``on_connect``, ``on_login``, ``on_room_init``, ``on_room_deinit``, ``on_query_response`` and ``on_chat_message``.
