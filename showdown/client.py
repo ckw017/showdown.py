@@ -10,7 +10,7 @@ import logging
 import traceback
 import warnings
 import math
-from functools import wraps
+from functools import wraps, partial
 from . import message, room, server, user, utils, docutils
 
 #Logging setup
@@ -108,11 +108,13 @@ class Client(user.User):
         self.output_queue = asyncio.Queue()
         self.rooms = {}
         self.challenges = {};
+        self.connected = False
         self.max_room_logs = max_room_logs
         self.autologin = True
         self.websocket = None #Initialized in _handler
         self.session = None
         self.loop = loop or asyncio.get_event_loop()
+        self._tasks = []
 
     def start(self, autologin=True):
         """
@@ -129,24 +131,21 @@ class Client(user.User):
         self.autologin = autologin
         try:
             if self.loop.is_running():
-                asyncio.ensure_future(
-                    self._handler(),
-                    loop=self.loop
-                )
+                task = self.add_task(self._handler())
+                task.add_done_callback(lambda f: _on_disconnect())
                 logger.info("The client's event loop was already running. "
                             "The client will run as a task on the loop.")
-                return True
+                return
             else:
                 self.loop.run_until_complete(self._handler())
         except KeyboardInterrupt:
             logger.info('Interrupt signal received. Closing client connection.')
             self.websocket.close() if self.websocket else None
             logger.info('Event loop closed.')
-            return True
         except:
             import traceback
             traceback.print_exc()
-            return False
+        self._on_disconnect()
 
     @docutils.format()
     async def _handler(self):
@@ -155,17 +154,41 @@ class Client(user.User):
         on_interval decorator to the event loop.
         """
         async with websockets.connect(self.websocket_url) as self.websocket, \
-                                  aiohttp.ClientSession() as session:
-            self.server.set_session(session)
+                                  aiohttp.ClientSession() as self.session:
+            self.connected = True
+            self.server.set_session(self.session)
             tasks = []
             for att in dir(self):
                 att = getattr(self, att)
                 if hasattr(att, '_is_interval_task') and att._is_interval_task:
-                    tasks.append(asyncio.ensure_future(att()))
-            done, pending = await asyncio.wait(tasks, 
-                                return_when=asyncio.FIRST_COMPLETED)
-            for task in pending:
-                task.cancel()
+                    self._tasks.append(asyncio.ensure_future(att()))
+            try:
+                done, pending = await asyncio.wait(self._tasks, 
+                                    return_when=asyncio.FIRST_COMPLETED)
+                for task in pending:
+                    task.cancel()
+            except:
+                import traceback
+                traceback.print_exc()
+
+    def _on_disconnect(self):
+        if self.connected:
+            for t in self._tasks:
+                if not t.cancelled():
+                    t.cancel()
+                    logger.info('Cancelled: {}'.format(t))
+            self._tasks = []
+            self.connected = False
+            self.on_disconnect()
+            self.start()
+
+    def add_task(self, coro):
+        return self._tasks.append(
+            asyncio.ensure_future(
+                coro,
+                loop = self.loop
+            )
+        )
 
     def on_interval(interval=0.0):
         """
@@ -272,10 +295,8 @@ class Client(user.User):
         #Showdown sends this response on initial connection
         if socket_input == 'o':
             logger.info('Connected on {}'.format(self.websocket_url))
-            asyncio.ensure_future(
-                self.on_connect(),
-                loop=self.loop
-            )
+            self.connected = True
+            self.add_task(self.on_connect())
             return
 
         inputs = utils.parse_socket_input(socket_input)
@@ -298,21 +319,19 @@ class Client(user.User):
             elif inp_type == 'queryresponse':
                 response_type, data = params[0], '|'.join(params[1:])
                 data = json.loads(data)
-                asyncio.ensure_future(
+                self.add_task(
                     self.on_query_response(response_type, data),
-                    loop=self.loop
                 )
                 if response_type == 'savereplay':
-                    asyncio.ensure_future(
-                        self.server.save_replay_async(data),
-                        loop = self.loop)
+                    self.add_task(
+                        self.server.save_replay_async(data)
+                    )
 
             #Challenge updates
             elif inp_type == 'updatechallenges':
                 self.challenges = json.loads(params[0])
-                asyncio.ensure_future(
-                    self.on_challenge_update(self.challenges),
-                    loop = self.loop
+                self.add_task(
+                    self.on_challenge_update(self.challenges)
                 )
 
             #Messages
@@ -324,18 +343,16 @@ class Client(user.User):
                 content = '|'.join(content)
                 chat_message = message.ChatMessage(room_id, timestamp,
                     author_str, content, client=self)
-                asyncio.ensure_future(
-                    self.on_chat_message(chat_message),
-                    loop=self.loop
+                self.add_task(
+                    self.on_chat_message(chat_message)
                 )
             elif inp_type == 'pm':
                 author_str, recipient_str, *content = params
                 content = '|'.join(content)
                 private_message = message.PrivateMessage(
                     author_str, recipient_str, content, client=self)
-                asyncio.ensure_future(
-                    self.on_private_message(private_message),
-                    loop = self.loop
+                self.add_task(
+                    self.on_private_message(private_message)
                 )
 
             #Rooms
@@ -344,24 +361,21 @@ class Client(user.User):
                 room_obj = room.class_map.get(room_type, room.Room)(
                     room_id, client=self, max_logs=self.max_room_logs)
                 self.rooms[room_id] = room_obj
-                asyncio.ensure_future(
-                    self.on_room_init(room_obj),
-                    loop=self.loop
+                self.add_task(
+                    self.on_room_init(room_obj)
                 )
             elif inp_type == 'deinit':
                 if room_id in self.rooms:
-                    asyncio.ensure_future(
-                        self.on_room_deinit(self.rooms.pop(room_id)),
-                        loop = self.loop
+                    self.add_task(
+                        self.on_room_deinit(self.rooms.pop(room_id))
                     )
 
             #add content to proper room
             if isinstance(self.rooms.get(room_id, None), room.Room):
                 self.rooms[room_id].add_content(inp)
 
-            asyncio.ensure_future(
+            self.add_task(
                 self.on_receive(room_id, inp_type, params),
-                loop=self.loop
             )
 
     async def login(self):
@@ -388,9 +402,8 @@ class Client(user.User):
             logger.info('Login succeeded')
         await self.websocket.send('["|/trn {},0,{}"]'
             .format(self.name, login_data['assertion']))
-        asyncio.ensure_future(
-            self.on_login(login_data),
-            loop=self.loop
+        self.add_task(
+            self.on_login(login_data)
         )
 
     @docutils.format()
@@ -745,6 +758,17 @@ class Client(user.User):
     # # # # #
     # Hooks #
     # # # # #
+
+
+    def on_disconnect(self):
+        """
+        Hook for subclasses. Called after the client's websocket and aiohttp
+        sessions cease.
+
+        Notes:
+            Does nothing by default.
+        """
+        pass
 
     async def on_connect(self):
         """
