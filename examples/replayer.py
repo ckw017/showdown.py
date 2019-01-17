@@ -15,8 +15,9 @@ with open('./examples/data/login.txt', 'rt') as f:
 class ReplayClient(showdown.Client):
     async def on_query_response(self, response_type, data):
         if response_type == 'roomlist':
-            for battle_id in set(data['rooms']) - set(self.rooms):
-                await self.join(battle_id)
+            for battle_id in set(data['rooms']):
+                if battle_id not in self.rooms:
+                    await self.join(battle_id)
 
     async def on_receive(self, room_id, inp_type, params):
         if inp_type == 'win':
@@ -24,6 +25,6 @@ class ReplayClient(showdown.Client):
 
     @showdown.Client.on_interval(interval=3)
     async def check_ou(self): 
-        await self.query_battles(tier='gen7ou', lifespan=3)
+        await self.query_battles(battle_format='gen7ou', lifespan=3)
 
-ReplayClient(name=username, password=password).start(autologin=False)
+ReplayClient(name=username, password=password).start()
