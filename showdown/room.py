@@ -2,6 +2,7 @@
 """Module for Room and Battle objects"""
 
 import math
+import time
 from collections import deque
 from . import utils, user
 
@@ -35,6 +36,7 @@ class Room:
         self.userlist = {}
         self.client = client
         self.title = None
+        self.init_time = time.time()
 
     def __eq__(self, other):
         return isinstance(other, Room) and self.id == other.id
