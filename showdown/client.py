@@ -180,7 +180,6 @@ class Client(user.User):
             self._tasks = []
             self.connected = False
             self.on_disconnect()
-            self.start()
 
     def add_task(self, coro):
         return self._tasks.append(
