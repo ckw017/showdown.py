@@ -182,12 +182,12 @@ class Client(user.User):
             self.on_disconnect()
 
     def add_task(self, coro):
-        return self._tasks.append(
-            asyncio.ensure_future(
+        task = asyncio.ensure_future(
                 coro,
                 loop = self.loop
-            )
         )
+        self._tasks.append(task)
+        return task
 
     def on_interval(interval=0.0):
         """
