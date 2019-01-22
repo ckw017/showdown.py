@@ -21,6 +21,10 @@ REPLAY_HEADERS = {
     'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
 }
 
+DEFAULT_AVATARS = {
+    "bw2elesa", "teamrocket", "yellow", "zinnia", "clemont", "wally"
+}
+
 def get_host(server_id):
     """
     Requests a server's host name from showdown.
