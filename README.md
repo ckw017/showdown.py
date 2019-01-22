@@ -53,6 +53,7 @@ class ReplayClient(showdown.Client):
         if inp_type == 'win':
             with open('./data/' + room_id, 'wt') as f:
                 f.write('\n'.join(self.rooms[room_id].logs))
+                
     @showdown.Client.on_interval(interval=3)
     async def check_ou(self): 
         await self.query_battles(tier='gen7ou', lifespan=3)
