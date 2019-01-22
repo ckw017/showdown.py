@@ -578,6 +578,27 @@ class Client(user.User):
             delay=delay, lifespan=lifespan))
 
     @docutils.format()
+    def save_replay_local(self, battle_id, output_path = None):
+        """
+        Saves logs from a battle locally to output_path.
+
+        Args:
+            {battle_id}
+            output_path (:obj:`str`, optional) : The path to the file the logs
+                will be saved. Defaults to "`battle_id`.txt"
+
+        Returns:
+            None
+        """
+        assert battle_id in self.rooms, 'Client is not in the room {}, replay '
+        'cannot be saved.'.format(battle_id)
+        if output_path is None:
+            output_path = '{}.txt'.format(battle_id)
+        assert type(output_path) is str, 'output_path must be a string.'
+        with open(output_path, 'wt') as f:
+            f.write('\n'.join((self.rooms[battle_id].logs)))
+
+    @docutils.format()
     async def forfeit(self, battle_id, *, delay=0, lifespan=math.inf):
         """
         Forfeit the match specified by battle_id.
