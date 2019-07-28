@@ -313,9 +313,9 @@ class Battle(Room):
         """
         |coro|
 
-        Uses the specified client or the object's client to switch into a
-        different pokemon. The client must be one of the players in the battle
-        for this to work.
+        Uses the specified client or the object's client to send the first pokemon
+        into battle (only applies to formats with teampreview). The client must be
+        one of the players in the battle for this to work.
         """
 
         await self.client.use_command(self.id, 'team', '{}'.format(start_id),
