@@ -318,7 +318,7 @@ class Battle(Room):
         one of the players in the battle for this to work.
         """
 
-        await self.client.use_command(self.id, 'team', '{}'.format(start_id),
+        await self.client.use_command(self.id, 'choose', 'team {}'.format(start_id),
             delay=delay, lifespan=lifespan)
 
 class_map = {
