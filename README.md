@@ -29,7 +29,7 @@ EchoClient(name=username, password=password).start()
 
 Other hooks include ``on_connect``, ``on_login``, ``on_room_init``, ``on_room_deinit``, ``on_query_response`` and ``on_chat_message``.
 
-These hooks are by no means all inclusive (Showdown has somewhere upwards of 40 different types of messages it uses to interact with clients in its protocol), and so a catch-all hook `on_receive` is also present. Each hook is given its own task on the event loop, so you don't have to worry about any tasks blocking each other.
+These hooks are by no means all inclusive (Showdown has somewhere upwards of 40 different types of messages it uses to interact with clients in its protocol), and so a catch-all hook `on_receive` is also present. Each hook call is given its own task on the event loop, so you can have multiple async processes spawned from the same hook.
 
 The bot can also be used for collecting data on battles. The following bot anonymously joins ongoing matches in the format 'OU' and saves replays of them when a user finishes.
 
@@ -53,6 +53,7 @@ class ReplayClient(showdown.Client):
         if inp_type == 'win':
             with open('./data/' + room_id, 'wt') as f:
                 f.write('\n'.join(self.rooms[room_id].logs))
+                
     @showdown.Client.on_interval(interval=3)
     async def check_ou(self): 
         await self.query_battles(tier='gen7ou', lifespan=3)

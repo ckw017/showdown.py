@@ -225,7 +225,7 @@ class Battle(Room):
 
         Uses the specified client or the object's client attribute to save a
         replay of the battle. The battle must be ended before for this method
-        to work. 
+        to work.
         """
         await client.save_replay(self.id, delay=delay, lifespan=lifespan)
 
@@ -248,7 +248,7 @@ class Battle(Room):
         |coro|
 
         Uses the specified client or the object's client attribute to turn on
-        the battle timer. The client must be one of the players in the battle 
+        the battle timer. The client must be one of the players in the battle
         for this to work.
         """
         await self.client.use_command(self.id, 'timer', 'on',
@@ -260,49 +260,65 @@ class Battle(Room):
         |coro|
 
         Uses the specified client or the object's client attribute to turn off
-        the battle timer. The client must be one of the players in the battle 
+        the battle timer. The client must be one of the players in the battle
         for this to work.
         """
         await self.client.use_command(self.id, 'timer', 'off',
             delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def switch(self, switch_id, turn_num, client=None, 
+    async def switch(self, switch_id, client=None,
         delay=0, lifespan=math.inf):
         """
         |coro|
 
         Uses the specified client or the object's client to switch into a
-        different pokemon. The client must be one of the players in the battle 
+        different pokemon. The client must be one of the players in the battle
         for this to work.
         """
-        await self.client.use_command(self.id, 'timer', 'on',
+
+        await self.client.use_command(self.id, 'choose', 'switch {}'
+            .format(switch_id),
             delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def move(self, move_id, turn_num, mega=False, client=None,
+    async def move(self, move_id, mega=False, client=None,
         delay=0, lifespan=math.inf):
         """
         |coro|
 
         Uses the specified client or the object's client attribute to turn on
-        the battle timer. The client must be one of the players in the battle 
+        the battle timer. The client must be one of the players in the battle
         for this to work.
         """
-        await self.client.use_command(self.id, 'choose', 'move {}{}|{}'
-            .format(move_id, ' mega' if mega else '', turn_num),
+        await self.client.use_command(self.id, 'choose', 'move {}{}'
+            .format(move_id, ' mega' if mega else ''),
             delay=delay, lifespan=lifespan)
 
     @utils.require_client
     async def undo(self, client=None, delay=0, lifespan=math.inf):
         """
         |coro|
-        
+
         Uses the specified client or the object's client attribute to undo their
         last move or switch. The player must be on of the players in the battle
         for this to work.
         """
         await self.client.use_comand(self.id, 'undo',
+            delay=delay, lifespan=lifespan)
+
+    @utils.require_client
+    async def start_poke(self, start_id, client=None,
+        delay=0, lifespan=math.inf):
+        """
+        |coro|
+
+        Uses the specified client or the object's client to send the first pokemon
+        into battle (only applies to formats with teampreview). The client must be
+        one of the players in the battle for this to work.
+        """
+
+        await self.client.use_command(self.id, 'team', '{}'.format(start_id),
             delay=delay, lifespan=lifespan)
 
 class_map = {
