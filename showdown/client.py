@@ -115,6 +115,7 @@ class Client(user.User):
         self.session = None
         self.loop = loop or asyncio.get_event_loop()
         self._tasks = []
+        self._transient_tasks = set()
 
     def start(self, autologin=True):
         """
@@ -173,20 +174,25 @@ class Client(user.User):
 
     def _on_disconnect(self):
         if self.connected:
-            for t in self._tasks:
+            for t in self._tasks + list(self._transient_tasks):
                 if not t.cancelled():
                     t.cancel()
                     logger.info('Cancelled: {}'.format(t))
             self._tasks = []
+            self._transient_tasks = set()
             self.connected = False
             self.on_disconnect()
 
-    def add_task(self, coro):
+    def add_task(self, coro, transient=False):
         task = asyncio.ensure_future(
                 coro,
                 loop = self.loop
         )
-        self._tasks.append(task)
+        if not transient:
+            self._tasks.append(task)
+        else:
+            self._transient_tasks.add(task)
+            task.add_done_callback(lambda t: self._transient_tasks.remove(t))
         return task
 
     def on_interval(interval=0.0):
@@ -320,17 +326,20 @@ class Client(user.User):
                 data = json.loads(data)
                 self.add_task(
                     self.on_query_response(response_type, data),
+                    transient=True
                 )
                 if response_type == 'savereplay':
                     self.add_task(
-                        self.server.save_replay_async(data)
+                        self.server.save_replay_async(data),
+                        transient=True
                     )
 
             #Challenge updates
             elif inp_type == 'updatechallenges':
                 self.challenges = json.loads(params[0])
                 self.add_task(
-                    self.on_challenge_update(self.challenges)
+                    self.on_challenge_update(self.challenges),
+                        transient=True
                 )
 
             #Messages
@@ -343,7 +352,8 @@ class Client(user.User):
                 chat_message = message.ChatMessage(room_id, timestamp,
                     author_str, content, client=self)
                 self.add_task(
-                    self.on_chat_message(chat_message)
+                    self.on_chat_message(chat_message),
+                    transient=True
                 )
             elif inp_type == 'pm':
                 author_str, recipient_str, *content = params
@@ -351,7 +361,8 @@ class Client(user.User):
                 private_message = message.PrivateMessage(
                     author_str, recipient_str, content, client=self)
                 self.add_task(
-                    self.on_private_message(private_message)
+                    self.on_private_message(private_message),
+                    transient=True
                 )
 
             #Rooms
@@ -361,12 +372,14 @@ class Client(user.User):
                     room_id, client=self, max_logs=self.max_room_logs)
                 self.rooms[room_id] = room_obj
                 self.add_task(
-                    self.on_room_init(room_obj)
+                    self.on_room_init(room_obj),
+                    transient=True
                 )
             elif inp_type == 'deinit':
                 if room_id in self.rooms:
                     self.add_task(
-                        self.on_room_deinit(self.rooms.pop(room_id))
+                        self.on_room_deinit(self.rooms.pop(room_id)),
+                        transient=True
                     )
 
             #add content to proper room
@@ -375,6 +388,7 @@ class Client(user.User):
 
             self.add_task(
                 self.on_receive(room_id, inp_type, params),
+                transient=True
             )
 
     async def login(self):
@@ -402,7 +416,8 @@ class Client(user.User):
         await self.websocket.send('["|/trn {},0,{}"]'
             .format(self.name, login_data['assertion']))
         self.add_task(
-            self.on_login(login_data)
+            self.on_login(login_data),
+            transient=True
         )
 
     @docutils.format()
