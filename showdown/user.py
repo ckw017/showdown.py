@@ -35,7 +35,7 @@ class User:
         if not user_str:
             self.auth = ' '
             name = ''
-        elif user_str[0].lower() not in string.ascii_lowercase:
+        elif user_str[0].lower() not in (string.ascii_lowercase + string.digits):
             self.auth = user_str[0]
             name = user_str[1:]
         else:

@@ -166,7 +166,7 @@ class Battle(Room):
         rules (:obj:`list`) : A list of strings describing the match's rules
         p1 (:obj:`showdown.user.User`) : User object representing player one in
             the match
-        p1 (:obj:`showdown.user.User`) : User object representing player two in
+        p2 (:obj:`showdown.user.User`) : User object representing player two in
             the match
         rated (:obj:`bool`) : True if the match is rated (on ladder), else False
         tier (:obj:`str`) : String representing the matches tier.

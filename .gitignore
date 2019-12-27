@@ -104,6 +104,12 @@ celerybeat-schedule
 .dmypy.json
 dmypy.json
 
+# Sensitive example info
+examples/data/
+
+# Test dir
+test/*
+
 # Pyre type checker
 .pyre/
 
