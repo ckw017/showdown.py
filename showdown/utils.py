@@ -39,6 +39,39 @@ def require_client(func):
             return await func(self, *args, **kwargs)
     return wrapper
 
+def require_client_session(func): 
+    """
+    Decorator for class methods that require a session either through keyword
+    argument, or through the object's client attribute.
+
+    Returns:
+        A wrapped version of the function. The object client.session attribute will
+        be passed in as the sessionkeyword if None is provided.
+
+    Raises:
+        AssertionError : Raised when the method is called without a client
+        keyword set and no client attribute. 
+    """
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        passed_session = kwargs.get('session', None)
+        client = getattr(self, 'client', None) 
+        if passed_session is None:
+            if client is None:
+                msg = ('{0} object does not have a client -- {0}.{1} will do '
+                    'nothing. To set a client, initialize the object with '
+                    '{0}(..., client=your_client). Alternatively, you can '
+                    'use the client keyword argument in the method.'
+                    .format(self.__class__.__name__), func.__name__)
+                raise AssertionError(msg)
+            else:
+                kwargs['session'] = client.session
+                return await func(self, *args, **kwargs)
+        else:
+            kwargs['session'] = passed_session
+            return await func(self, *args, **kwargs)
+    return wrapper
+
 def strip_prefix(s):
     """ 
     Strips off nonletter prefix from a string.
