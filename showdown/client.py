@@ -141,7 +141,6 @@ class Client(user.User):
                 self.loop.run_until_complete(self._handler())
         except KeyboardInterrupt:
             logger.info('Interrupt signal received. Closing client connection.')
-            self.websocket.close() if self.websocket else None
             logger.info('Event loop closed.')
         except:
             import traceback
