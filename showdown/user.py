@@ -185,8 +185,13 @@ class User:
         if not force_update and self._user_data is not None:
             return
         response = requests.get(USER_DATA_URL_BASE.format(user_id = self.id))
-        if response.ok:
-            self._user_data = response.json()
+        self._user_data = response.json()
+
+    async def _get_user_data_async(self, session, force_update=False):
+        if not force_update and self._user_data is not None:
+            return
+        response = await session.get(USER_DATA_URL_BASE.format(user_id = self.id))
+        self._user_data = await response.json()
 
     def get_ratings(self):
         """
@@ -212,6 +217,11 @@ class User:
         self._get_user_data(force_update=True)
         return self._user_data['ratings']
 
+    @utils.require_client_session
+    async def get_ratings_async(self, session=None):
+        await self._get_user_data_async(session, force_update=True)
+        return self._user_data['ratings']
+
     def get_register_time(self):
         """
         Gets the time the user's account was registered.
@@ -222,10 +232,15 @@ class User:
 
         Examples:
             >>> User('zarel').get_register_time()
-            1304640
+            1304640000
         """
         self._get_user_data()
-        return self._user_data['registertime'] // 1000
+        return self._user_data['registertime']
+
+    @utils.require_client_session
+    async def get_register_time_async(self, session):
+        await self._get_user_data_async(session)
+        return self._user_data['registertime'] 
 
     def get_register_name(self):
         """
@@ -241,6 +256,10 @@ class User:
         self._get_user_data()
         return self._user_data['username']
 
+    @utils.require_client_session
+    async def get_register_name_async(self, session=None):
+        await self._get_user_data_async(session)
+        return self._user_data['username'] 
 
     def get_ladder(self, server_id=None):
         """
@@ -281,5 +300,20 @@ class User:
             params=params).text
         return utils.parse_http_input(result)
 
-    async def get_ladder_async(self, server_id='showdown'):
-        raise NotImplementedError
+    @utils.require_client_session
+    async def get_ladder_async(self, server_id=None, session=None):
+        params = {
+            'act' : 'ladderget',
+            'user' : self.id
+        }
+        if server_id is None:
+            if self.client:
+                server_id = self.client.server.id
+            else:
+                server_id = 'showdown'
+        resp = await session.get(
+            server.ACTION_URL_BASE.format(server_id=server_id),
+            params=params
+        )
+        result = await resp.text()
+        return utils.parse_http_input(result)
