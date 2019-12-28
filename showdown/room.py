@@ -74,7 +74,7 @@ class Room:
 
     def update(self, inp_type, *params):
         """
-        Updates the Room's state from input. This his method isn't intended to
+        Updates the Room's state from input. This method isn't intended to
         be called directly, but rather through a client's receiver method.
         """
 
@@ -180,6 +180,8 @@ class Battle(Room):
         loser_id (:obj:`str`) : String representing the match id of the
             battle's loser. Ex: 'p1', 'p2'
         ended (:obj:`bool`) : True if a player has won the match, else False
+
+        TODO: Entries for new attributes
     """
     def __init__(self, room_id, client=None, max_logs=5000):
         Room.__init__(self, room_id, client=client, max_logs=max_logs)
@@ -188,8 +190,12 @@ class Battle(Room):
         self.rated = False
         self.ended = False
         self.tier = None
+        self.turns = 0
         self.winner, self.loser = None, None
         self.winner_id, self.loser_id = None, None
+        self.outcome = None
+        self.p1_metadata = {'switches': 0, 'faints': 0, 'lead': None, 'teampreview': []}
+        self.p2_metadata = {'switches': 0, 'faints': 0, 'lead': None, 'teampreview': []}
 
     def update(self, inp_type, *params): #TODO: Fix this up
         """
@@ -202,8 +208,21 @@ class Battle(Room):
             if not name or player_id not in ('p1', 'p2'):
                 return
             setattr(self, player_id, user.User(name, client=self.client))
+        elif inp_type == 'switch':
+            if params[0].startswith('p1a'):
+                self.p1_metadata['switches'] += 1
+            if params[0].startswith('p2a'):
+                self.p2_metadata['switches'] += 1
+        elif inp_type == 'poke':
+            pid, preview = params[:2]
+            if pid == 'p1':
+                self.p1_metadata['teampreview'].append(preview)
+            elif pid == 'p2':
+                self.p2_metadata['teampreview'].append(preview)
         elif inp_type == 'rated':
             self.rated = True
+        elif inp_type == 'turn':
+            self.turns += 1
         elif inp_type == 'tier':
             self.tier = utils.name_to_id(params[0])
         elif inp_type == 'rule':
@@ -217,6 +236,16 @@ class Battle(Room):
                 self.winner, self.winner_id = self.p2, 'p2'
                 self.loser, self.loser_id = self.p1, 'p1'
             self.ended = True
+            self.end_time = time.time()
+        elif inp_type == '-message':
+            msg = params[0]
+            if msg.endswith(' forfeited.'):
+                self.outcome = 'forfeit'
+            elif msg.endswith('due to inactivity.'):
+                self.outcome  = 'timeout'
+        elif inp_type == 'switch':
+            species = params[0].split(',')[0]
+
 
     @utils.require_client
     async def save_replay(self, client=None, delay=0, lifespan=math.inf):
