@@ -11,10 +11,14 @@ import traceback
 import warnings
 import math
 from functools import wraps, partial
+from time import sleep
 from . import message, room, server, user, utils, docutils
 
 #Logging setup
 logger = logging.getLogger(__name__)
+
+DEFAULT_RECONNECT_SLEEP = 20
+MAX_RECONNECT_SLEEP = 60 * 15
 
 class OutputToken:
     """
@@ -104,20 +108,24 @@ class Client(user.User):
 
         # Initialize client attributes
         self.password = password
+        self.max_room_logs = max_room_logs
+        self.autologin = True
+        self.loop = loop or asyncio.get_event_loop()
+        self._set_defaults()
+
+    def _set_defaults(self):
+        self._tasks = []
+        self._transient_tasks = set()
+        self.websocket = None
+        self.session = None
         self.challengekeyid, self.challstr = None, None
         self.output_queue = asyncio.Queue()
         self.rooms = {}
-        self.challenges = {};
+        self.challenges = {}
         self.connected = False
-        self.max_room_logs = max_room_logs
-        self.autologin = True
-        self.websocket = None #Initialized in _handler
-        self.session = None
-        self.loop = loop or asyncio.get_event_loop()
-        self._tasks = []
-        self._transient_tasks = set()
 
-    def start(self, autologin=True):
+
+    def start(self, autologin=True, autoreconnect=False):
         """
         Starts the event loop stored in the Client's loop attribute.
 
@@ -129,23 +137,36 @@ class Client(user.User):
         Returns:
             bool : True if exited gracefully (on an interrupt), else False
         """
+        reconnect_delay = DEFAULT_RECONNECT_SLEEP
         self.autologin = autologin
-        try:
-            if self.loop.is_running():
-                task = self.add_task(self._handler())
-                task.add_done_callback(lambda f: _on_disconnect())
-                logger.info("The client's event loop was already running. "
-                            "The client will run as a task on the loop.")
+        self.autoreconnect = autoreconnect
+        while True:
+            try:
+                if self.loop.is_running():
+                    assert not autoreconnect, "Autoreconnect is for standalone event loops only"
+                    task = self.add_task(self._handler())
+                    task.add_done_callback(lambda f: _on_disconnect())
+                    logger.info("The client's event loop was already running. "
+                                "The client will run as a task on the loop.")
+                    return
+                else:
+                    self.loop.run_until_complete(self._handler())
+            except KeyboardInterrupt:
+                logger.info('Interrupt signal received. Closing client connection.')
+                logger.info('Event loop closed.')
+                self.autoreconnect = False
+            except:
+                import traceback
+                traceback.print_exc()
+            self._on_disconnect()
+            if not self.autoreconnect:
                 return
-            else:
-                self.loop.run_until_complete(self._handler())
-        except KeyboardInterrupt:
-            logger.info('Interrupt signal received. Closing client connection.')
-            logger.info('Event loop closed.')
-        except:
-            import traceback
-            traceback.print_exc()
-        self._on_disconnect()
+            logger.info("Sleeping for {}s before reconnecting".format(reconnect_delay))
+            sleep(reconnect_delay)
+            reconnect_delay = min(
+                MAX_RECONNECT_SLEEP, 
+                reconnect_delay * 2
+            ) # Bounded exponential backoff
 
     @docutils.format()
     async def _handler(self):
@@ -176,10 +197,8 @@ class Client(user.User):
             for t in self._tasks + list(self._transient_tasks):
                 if not t.cancelled():
                     t.cancel()
-                    logger.info('Cancelled: {}'.format(t))
-            self._tasks = []
-            self._transient_tasks = set()
-            self.connected = False
+                    logger.debug('Cancelled: {}'.format(t))
+            self._set_defaults()
             self.on_disconnect()
 
     def add_task(self, coro, transient=False):
