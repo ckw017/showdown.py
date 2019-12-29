@@ -57,7 +57,12 @@ class Room:
         """
         self.logs.append(content)
         inp_type, params = utils.parse_text_input(content)
-        self.update(inp_type, *params)
+        try:
+            self.update(inp_type, *params)
+        except:
+            import traceback
+            print(self.id)
+            traceback.print_exc()
 
     def _add_user(self, user_str):
         """
@@ -138,6 +143,21 @@ class Room:
         """
         await client.leave(self.id, delay=delay, lifespan=lifespan)
 
+def _get_empty_player_metadata():
+    return {
+        'switches': 0, 'faints': 0, 'lead': None, 
+        'teampreview': [], 'nicknames': {},
+        'fainted': {}, 'teamsize': None, 'teaminfo': {}
+    }
+
+def _get_empty_team_metadata():
+    return {
+        'start_item': None,
+        'curr_item': None,
+        'moves': [],
+        'tricked': False
+    }
+
 class Battle(Room):
     """
     Subclass of Room representing a battle room on Showdown. Has additional
@@ -189,40 +209,71 @@ class Battle(Room):
         self.p1, self.p2 = None, None
         self.rated = False
         self.ended = False
+        self.end_time = False # Timestamp when `win` upkeep is received
         self.tier = None
         self.turns = 0
         self.winner, self.loser = None, None
         self.winner_id, self.loser_id = None, None
         self.outcome = None
-        self.p1_metadata = {'switches': 0, 'faints': 0, 'lead': None, 'teampreview': []}
-        self.p2_metadata = {'switches': 0, 'faints': 0, 'lead': None, 'teampreview': []}
-
-    def update(self, inp_type, *params): #TODO: Fix this up
+        self.player_metadata = {
+            'p1': _get_empty_player_metadata(),
+            'p2': _get_empty_player_metadata()
+        }
+        
+    def update(self, inp_type, *params): 
+        #TODO: Fix this up
+        # A full implementation that maintains metadata is a bit beyond
+        # the scope of my intentions, but could be done probably by
+        # looking into how the official client tracks state
         """
-        Updates the Room's state from input. This his method isn't intended to
+        Updates the Room's state from input. This method isn't intended to
         be called directly, but rather through a client's receiver method.
         """
         Room.update(self, inp_type, *params)
         if inp_type == 'player':
             player_id, name = params[0], params[1]
-            if not name or player_id not in ('p1', 'p2'):
+            if not(name and player_id in ('p1', 'p2')):
+                # Strange case where name is empty string
+                # Related to a player leaving a battle midway?
                 return
             setattr(self, player_id, user.User(name, client=self.client))
-        elif inp_type == 'switch':
-            if params[0].startswith('p1a'):
-                self.p1_metadata['switches'] += 1
-            if params[0].startswith('p2a'):
-                self.p2_metadata['switches'] += 1
+        elif inp_type == 'teamsize':
+            pid, count = params[:2]
+            self.player_metadata[pid]['teamsize'] = int(count)
+        elif inp_type == 'faint':
+            pid = params[0][:2]
+            ident = params[0][5:]
+            curr_player_metadata = self.player_metadata[pid]
+            curr_player_metadata['faints'] += 1
+            curr_player_metadata['fainted'][ident] = self.turns
+        elif inp_type in {'switch', 'drag'}:
+            pid = params[0][:2]
+            ident = params[0][5:]
+            details = params[1]
+            isnickname = not details.startswith(ident)
+
+            # Update switch/lead info
+            curr_player_metadata = self.player_metadata[pid]
+            curr_player_metadata['switches'] += 1
+            if not curr_player_metadata['lead']:
+                curr_player_metadata['lead'] = details
+
+            # Add to teaminfo
+            teaminfo = curr_player_metadata['teaminfo']
+            if ident not in teaminfo:
+                teaminfo[ident] = _get_empty_team_metadata()
+
+            # Update nickname info
+            nicks = curr_player_metadata['nicknames']
+            if isnickname and (ident not in nicks):
+                nicks[ident] = details
         elif inp_type == 'poke':
             pid, preview = params[:2]
-            if pid == 'p1':
-                self.p1_metadata['teampreview'].append(preview)
-            elif pid == 'p2':
-                self.p2_metadata['teampreview'].append(preview)
+            self.player_metadata[pid]['teampreview'].append(preview)
         elif inp_type == 'rated':
             self.rated = True
         elif inp_type == 'turn':
-            self.turns += 1
+            self.turns = int(params[0])
         elif inp_type == 'tier':
             self.tier = utils.name_to_id(params[0])
         elif inp_type == 'rule':
@@ -237,6 +288,8 @@ class Battle(Room):
                 self.loser, self.loser_id = self.p1, 'p1'
             self.ended = True
             self.end_time = time.time()
+            if not self.outcome:
+                self.outcome = 'knockout'
         elif inp_type == '-message':
             msg = params[0]
             if msg.endswith(' forfeited.'):
@@ -245,6 +298,49 @@ class Battle(Room):
                 self.outcome  = 'timeout'
         elif inp_type == 'switch':
             species = params[0].split(',')[0]
+        elif inp_type == 'move':
+            full_params = ''.join(params)
+            if '[from]' in full_params:
+                return # Magic bounce shenanigans
+            pid = params[0][:2]
+            ident = params[0][5:]
+            teaminfo = self.player_metadata[pid]['teaminfo']
+            if params[1] not in teaminfo[ident]['moves']:
+                # Woah isn't this quadratic time?
+                # The list will never get past size 4, so no
+                # Knock on wood of course.
+                teaminfo[ident]['moves'].append(params[1])
+        elif inp_type == '-item':
+            # Detects item reveals from frisk, etc...
+            full_params = ''.join(params)
+            pid = params[0][:2]
+            ident = params[0][5:]
+            item = params[1]
+            memberinfo = self.player_metadata[pid]['teaminfo'][ident]
+            memberinfo['curr_item'] = item
+            if '[from] move:' in full_params:
+                memberinfo['tricked'] = True 
+                return # Trick/Switcheroo shenanigans
+                # TODO: maintain some state to track what gets tricked to where
+            if not memberinfo['tricked']:
+                memberinfo['start_item'] = item
+        elif inp_type == '-enditem':
+            # Detects item consumption and knock offs
+            full_params = ''.join(params)
+            pid = params[0][:2]
+            ident = params[0][5:]
+            item = params[1]
+            memberinfo = self.player_metadata[pid]['teaminfo'][ident]
+            memberinfo['curr_item'] = 'No Item'
+            if not memberinfo['tricked']:
+                memberinfo['start_item'] = item
+        elif inp_type == '-mega':
+            return # TODO: Update held item with megastone info
+
+            
+            
+
+
 
 
     @utils.require_client
