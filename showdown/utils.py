@@ -11,7 +11,17 @@ import traceback
 import inspect
 from functools import wraps
 
-def require_client(func): 
+
+require_coro_msg = "{} must be defined as a couroutine (using async def). \n"\
+    "The actual definition in {} line {}:\n\n{}\nChange this to async def to "\
+    "avoid this error."
+def require_coro(f):
+    assert inspect.iscoroutinefunction(f), require_coro_msg.format(
+        f.__name__, inspect.getsourcefile(f), inspect.getsourcelines(f)[-1], inspect.getsource(f)
+    )
+
+
+def require_client(func):
     """
     Decorator for class methods that require a client either through keyword
     argument, or through the object's client attribute.
@@ -22,11 +32,11 @@ def require_client(func):
 
     Raises:
         AssertionError : Raised when the method is called without a client
-        keyword set and no client attribute. 
+        keyword set and no client attribute.
     """
     @wraps(func)
     async def wrapper(self, *args, **kwargs):
-        client = kwargs.get('client', None) or getattr(self, 'client', None) 
+        client = kwargs.get('client', None) or getattr(self, 'client', None)
         if client is None:
             msg = ('{0} object does not have a client -- {0}.{1} will do '
                    'nothing. To set a client, initialize the object with '
@@ -39,7 +49,7 @@ def require_client(func):
             return await func(self, *args, **kwargs)
     return wrapper
 
-def require_client_session(func): 
+def require_client_session(func):
     """
     Decorator for class methods that require a session either through keyword
     argument, or through the object's client attribute.
@@ -50,12 +60,12 @@ def require_client_session(func):
 
     Raises:
         AssertionError : Raised when the method is called without a client
-        keyword set and no client attribute. 
+        keyword set and no client attribute.
     """
     @wraps(func)
     async def wrapper(self, *args, **kwargs):
         passed_session = kwargs.get('session', None)
-        client = getattr(self, 'client', None) 
+        client = getattr(self, 'client', None)
         if passed_session is None:
             if client is None:
                 msg = ('{0} object does not have a client -- {0}.{1} will do '
@@ -73,7 +83,7 @@ def require_client_session(func):
     return wrapper
 
 def strip_prefix(s):
-    """ 
+    """
     Strips off nonletter prefix from a string.
 
     Examples:
@@ -104,7 +114,7 @@ def clean_message_content(content, strict=False):
     """
     Truncates messages longer than 300 characters. If the strict flag is set,
     then an error is raised instead.
-    
+
     Params:
         content (:obj:`str`) : Content to be cleaned
 
@@ -229,7 +239,7 @@ def _to_mon_str(mon):
         name_row = name_row.replace('(F)', '')
     if '(M)' in name_row:
         gender = 'M'
-        name_row = name_row.replace('(M)', '') 
+        name_row = name_row.replace('(M)', '')
     if '@' in name_row:
         name_row, item = name_row.split('@')
     else:
