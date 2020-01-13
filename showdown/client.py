@@ -10,15 +10,20 @@ import logging
 import traceback
 import warnings
 import math
+import signal
+import inspect
 from functools import wraps, partial
 from time import sleep
 from . import message, room, server, user, utils, docutils
 
-#Logging setup
+# Keyboard interrupts should continue to work
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+# Logging setup
 logger = logging.getLogger(__name__)
 
-DEFAULT_RECONNECT_SLEEP = 20
-MAX_RECONNECT_SLEEP = 60 * 15
+DEFAULT_RECONNECT_SLEEP = 5
+MAX_RECONNECT_SLEEP = 180 # Three minutes
 
 class OutputToken:
     """
@@ -45,52 +50,52 @@ class Client(user.User):
     from Showdown's servers.
 
     Notes:
-        Once you create a client object, use Client.start() to begin you 
+        Once you create a client object, use Client.start() to begin your
         connection. If want your bot to be anonymous (not logged in), run start
         with the keyword argument start(autologin=False)
 
     Args:
-        name (:obj:`str`, optional) : The username of the account you would 
+        name (:obj:`str`, optional) : The username of the account you would
             like to log in to. By default, this is set to the empty string.
         password (:obj:`str`, optional) L The password of the account you would
             like to log in to. By default, this is set to the empty string.
-        loop (optional) : the asyncio eventloop used by the client to send on 
-            receive info across websockets. If no loop is specified, 
+        loop (optional) : the asyncio eventloop used by the client to send on
+            receive info across websockets. If no loop is specified,
             asyncio.get_event_loop() will be used to create an event loop
         max_room_logs (:obj:`int`, optional) : The number of logs to save for
-            active rooms. A log is any event that takes place in a room, 
+            active rooms. A log is any event that takes place in a room,
             including user joins, leaves, chat messages, and raw html. This
             information is stored in a FIFO deque.
         server_id (:obj:`str`, optional) : The id of the server the client will
             connect to. For a list of all associated  servers, visit the page
-            at https://pokemonshowdown.com/servers. This value defaults to 
+            at https://pokemonshowdown.com/servers. This value defaults to
             'showdown', the "main" showdown server.
         server_host (:obj:`str`, optional) : The host name of the server the
             client will connect to. This value is None by default, and will be
-            retrieved automatically from 
+            retrieved automatically from
             https://pokemonshowdown.com/servers/{host_name}.json
 
     Attributes:
-        server (showdown.server.Server) : object representing the server the 
+        server (showdown.server.Server) : object representing the server the
             client is connected to.
-        websocket_url (str) : The url over which the client's websocket 
+        websocket_url (str) : The url over which the client's websocket
             connection is established
         password (str) : The password the client uses to login
-        challengekeyid (str) : Id assigned by the server to identify the 
+        challengekeyid (str) : Id assigned by the server to identify the
             client. Used to login.
-        challengestr (str) : Token assigned by the server to identify the 
+        challengestr (str) : Token assigned by the server to identify the
             client. Used to login.
         output_queue (asyncio.Queue) : Queue used to manage what is sent back
             to the server websocket.
-        rooms (dict) : Dictionary with entries of {str : showdown.room.Room} 
+        rooms (dict) : Dictionary with entries of {str : showdown.room.Room}
             that maps room_id's to Rooms the client is currently connected to.
         max_room_logs (int) : The maximum number of logs stored in this client's
             Room objects.
-        autologin (bool) : Bool denoting whether or not the client will 
-            automatically login on a call to the Client.start method. Can be 
+        autologin (bool) : Bool denoting whether or not the client will
+            automatically login on a call to the Client.start method. Can be
             set by using a keyword argument in Client.start
-        websocket (websockets.websocket) : The socket the client uses to 
-            communicate with the server. Initialized to None until 
+        websocket (websockets.websocket) : The socket the client uses to
+            communicate with the server. Initialized to None until
             Client.start() is called.
         loop (asyncio event loop (Differs between platforms)) : The event loop
             used for the client's websocket interactions and methods specified
@@ -98,7 +103,7 @@ class Client(user.User):
     """
 
     def __init__(self, name='', password='', *, loop=None, max_room_logs=5000,
-                    server_id='showdown', server_host=None):
+                server_id='showdown', server_host=None, strict_exceptions=False):
         super().__init__(name, client=self)
 
         # URL setup
@@ -110,12 +115,16 @@ class Client(user.User):
         self.password = password
         self.max_room_logs = max_room_logs
         self.autologin = True
+        self.autoreconnect = False
         self.loop = loop or asyncio.get_event_loop()
         self._set_defaults()
+        self.strict_exceptions = strict_exceptions
 
     def _set_defaults(self):
+        # Defaults values for reconnections
         self._tasks = []
         self._transient_tasks = set()
+        self._reaper_queue = asyncio.Queue()
         self.websocket = None
         self.session = None
         self.challengekeyid, self.challstr = None, None
@@ -124,82 +133,88 @@ class Client(user.User):
         self.challenges = {}
         self.connected = False
 
-
     def start(self, autologin=True, autoreconnect=False):
         """
         Starts the event loop stored in the Client's loop attribute.
 
         Args:
             autologin (:obj:`bool`, optional) : Bool denoting whether or not the
-                client will automatically login after connecting to the server. 
+                client will automatically login after connecting to the server.
                 Defaults to True.
-    
+
         Returns:
-            bool : True if exited gracefully (on an interrupt), else False
+            bool : True if exited attached to existing loop, False otherwise
         """
-        reconnect_delay = DEFAULT_RECONNECT_SLEEP
         self.autologin = autologin
         self.autoreconnect = autoreconnect
-        while True:
-            try:
-                if self.loop.is_running():
-                    assert not autoreconnect, "Autoreconnect is for standalone event loops only"
-                    task = self.add_task(self._handler())
-                    task.add_done_callback(lambda f: _on_disconnect())
-                    logger.info("The client's event loop was already running. "
-                                "The client will run as a task on the loop.")
-                    return
-                else:
-                    self.loop.run_until_complete(self._handler())
-            except KeyboardInterrupt:
-                logger.info('Interrupt signal received. Closing client connection.')
-                logger.info('Event loop closed.')
-                self.autoreconnect = False
-            except:
-                import traceback
-                traceback.print_exc()
-            self._on_disconnect()
-            if not self.autoreconnect:
-                return
-            logger.info("Sleeping for {}s before reconnecting".format(reconnect_delay))
-            sleep(reconnect_delay)
-            reconnect_delay = min(
-                MAX_RECONNECT_SLEEP, 
-                reconnect_delay * 2
-            ) # Bounded exponential backoff
+        if self.loop.is_running():
+            task = self.add_task(self._handler())
+            logger.info("The client's event loop was already running. "
+                        "The client will run as a new task on the loop.")
+            return True
+        else:
+            self.loop.run_until_complete(self._handler())
+            return False
 
     @docutils.format()
     async def _handler(self):
         """
-        Creates websocket connection and adds any methods flagged by the 
+        Creates websocket connection and adds any methods flagged by the
         on_interval decorator to the event loop.
         """
-        async with websockets.connect(self.websocket_url) as self.websocket, \
-                                  aiohttp.ClientSession() as self.session:
-            self.connected = True
-            self.server.set_session(self.session)
-            tasks = []
-            for att in dir(self):
-                att = getattr(self, att)
-                if hasattr(att, '_is_interval_task') and att._is_interval_task:
-                    self._tasks.append(asyncio.ensure_future(att()))
+        reconnect_delay = DEFAULT_RECONNECT_SLEEP
+        while True:
             try:
-                done, pending = await asyncio.wait(self._tasks, 
-                                    return_when=asyncio.FIRST_COMPLETED)
-                for task in pending:
-                    task.cancel()
+                async with websockets.connect(self.websocket_url) as self.websocket, \
+                                        aiohttp.ClientSession() as self.session:
+                    self.connected = True
+                    self.server.set_session(self.session)
+                    tasks = []
+                    for att in dir(self):
+                        att = getattr(self, att)
+                        if hasattr(att, '_is_interval_task') and att._is_interval_task:
+                            self._tasks.append(asyncio.ensure_future(att()))
+                    done, pending = await asyncio.wait(self._tasks,
+                                        return_when=asyncio.FIRST_COMPLETED)
+                    for task in pending:
+                        task.cancel()
+                    for task in done:
+                        if task.exception():
+                            raise task.exception()
             except:
                 import traceback
                 traceback.print_exc()
+                await self._on_disconnect(self.autoreconnect)
+                if not self.autoreconnect:
+                    logger.info("An exception has occurred. The bot will "\
+                        "go offline. To reconnect automatically start the "\
+                        "bot with Client.start(autoreconnect=True)."
+                    )
+                    return
 
-    def _on_disconnect(self):
+                logger.info("An exception has occurred. The bot will "\
+                    "reconnect. To forgo autoreconnect start the bot with "\
+                    "Client.start(autoreconnect=False)."
+                )
+
+            logger.info("Sleeping for {}s before reconnecting".format(
+                reconnect_delay
+            ))
+            await asyncio.sleep(reconnect_delay)
+            reconnect_delay = min(
+                MAX_RECONNECT_SLEEP,
+                reconnect_delay * 2
+            ) # Bounded exponential backoff
+
+    async def _on_disconnect(self, reconnecting):
         if self.connected:
             for t in self._tasks + list(self._transient_tasks):
                 if not t.cancelled():
                     t.cancel()
                     logger.debug('Cancelled: {}'.format(t))
             self._set_defaults()
-            self.on_disconnect()
+            utils.require_coro(self.on_disconnect)
+            await self.on_disconnect(reconnecting)
 
     def add_task(self, coro, transient=False):
         task = asyncio.ensure_future(
@@ -210,20 +225,20 @@ class Client(user.User):
             self._tasks.append(task)
         else:
             self._transient_tasks.add(task)
-            task.add_done_callback(lambda t: self._transient_tasks.remove(t))
+            task.add_done_callback(lambda t: self._reaper_queue.put_nowait(t))
         return task
 
     def on_interval(interval=0.0):
         """
-        A decorator creator to flag methods that the client should loop in an 
+        A decorator creator to flag methods that the client should loop in an
         interval
 
         Args:
-            interval (:obj:`float`, optional) :  The length of the interval to 
+            interval (:obj:`float`, optional) :  The length of the interval to
                 run the method on in seconds. Defaults to 0.0.
 
         Returns:
-            func - A decorator function that loops the passed in func on the 
+            func - A decorator function that loops the passed in func on the
                 specified interval, and flagged to be added to the client's
                 event loop.
 
@@ -247,11 +262,32 @@ class Client(user.User):
         return decorator
 
     @on_interval()
+    async def _transient_task_reaper(self):
+        task = await self._reaper_queue.get()
+        self._transient_tasks.remove(task)
+        if task.exception():
+            if self.strict_exceptions:
+                logger.info("Exception caught in Client._transient_task_reaper. "\
+                    "Disconnecting. Set strict_exceptions=False if"\
+                    " you don't want this behavior"
+                )
+                raise task.exception()
+            try:
+                raise task.exception()
+            except:
+                logger.info("Exception caught in Client._transient_task_reaper. "\
+                    "Ignoring and continuing. Set strict_exceptions=True if"\
+                    " you don't want this behavior"
+                )
+                traceback.print_exc()
+
+
+    @on_interval()
     async def sender(self):
         """
         |coro|
 
-        Waits for relevant output to appear in the client's output_queue 
+        Waits for relevant output to appear in the client's output_queue
         attribute, and sends it back to the server through websocket.
 
         Returns:
@@ -309,7 +345,7 @@ class Client(user.User):
         """
         |coro|
 
-        Awaits input from websocket and parses the important stuff. Subclasses 
+        Awaits input from websocket and parses the important stuff. Subclasses
         can hook into the input through Client.on_receive.
         """
         socket_input = await self.websocket.recv()
@@ -326,7 +362,7 @@ class Client(user.User):
         for room_id, inp in inputs:
             logger.debug('||| Parsing:\n{}'.format(inp))
             inp_type, params = utils.parse_text_input(inp)
-            
+
             #Set challstr attributes and autologin
             if inp_type == 'challstr':
                 self.challengekeyid, self.challstr = params
@@ -409,7 +445,7 @@ class Client(user.User):
                 transient=True
             )
 
-    async def login(self):
+    async def login(self, avatar_id=0):
         """
         |coro|
 
@@ -424,15 +460,15 @@ class Client(user.User):
             raise Exception('Cannot login, no password has been specified')
 
         logger.info('Logging in as "{}"'.format(self.name))
-        login_data = await self.server.login_async(self.name, 
+        login_data = await self.server.login_async(self.name,
             self.password, self.challstr, self.challengekeyid)
         if not login_data['actionsuccess']:
             raise ValueError('Failed to log in as user `{}`.'
                 ' Raw login result:\n{}'.format(self.name, result_data))
         else:
             logger.info('Login succeeded')
-        await self.websocket.send('["|/trn {},0,{}"]'
-            .format(self.name, login_data['assertion']))
+        await self.websocket.send('["|/trn {},{},{}"]'
+            .format(self.name, avatar_id, login_data['assertion']))
         self.add_task(
             self.on_login(login_data),
             transient=True
@@ -448,7 +484,7 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.add_output('|/avatar {}'.format(avatar_id), 
+        await self.add_output('|/avatar {}'.format(avatar_id),
             delay=delay, lifespan=lifespan)
 
     @docutils.format()
@@ -477,8 +513,8 @@ class Client(user.User):
     @docutils.format()
     async def upload_team(self, team, *, delay=0, lifespan=math.inf):
         """
-        Upload's the specified team to the server. Generally isn't needed 
-        on its own, and is more useful as a subroutine for validate_team and 
+        Upload's the specified team to the server. Generally isn't needed
+        on its own, and is more useful as a subroutine for validate_team and
         search_battles.
 
         Args:
@@ -494,7 +530,7 @@ class Client(user.User):
     async def validate_team(self, team, battle_format, *,
         delay=0, lifespan=math.inf):
         """
-        Uploads the specified team to the server and validates for the 
+        Uploads the specified team to the server and validates for the
         format specified by battle_format.
 
         Args:
@@ -509,19 +545,19 @@ class Client(user.User):
             delay=delay, lifespan=lifespan)
 
     @docutils.format()
-    async def search_battles(self, team, battle_format, 
+    async def search_battles(self, team, battle_format,
         delay=0, lifespan=math.inf):
         """
-        Uploads the specified team and searches for battles for the format 
+        Uploads the specified team and searches for battles for the format
         specified by battle_format.
-        
+
         Args:
             {team}
             {delay}
             {lifespan}
 
         Notes:
-            You can specify the team to be None or the empty string for 
+            You can specify the team to be None or the empty string for
             battle_formats like randombattles, where no team is needed to be provided.
         """
         battle_format = utils.name_to_id(battle_format)
@@ -538,12 +574,12 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.add_output('|/cancelsearch', 
+        await self.add_output('|/cancelsearch',
             delay=delay, lifespan=lifespan)
 
-    # # # # # # # # # # # 
+    # # # # # # # # # # #
     # Room interactions #
-    # # # # # # # # # # # 
+    # # # # # # # # # # #
 
     @docutils.format()
     async def join(self, room_id, *, delay=0, lifespan=math.inf):
@@ -597,10 +633,10 @@ class Client(user.User):
 
         Returns:
             None
-        
+
         Notes:
             This method takes a str. Attempting to pass in a Battle object will
-            fail. Use the Battle.save_replay() method instead, or 
+            fail. Use the Battle.save_replay() method instead, or
             Client.save_replay(battle.id)
 
             The actual upload is handled on the server's response through a
@@ -646,7 +682,7 @@ class Client(user.User):
         await self.add_output('{}|/forfeit'.format(battle_id),
             delay=delay, lifespan=lifespan)
 
-    # # # # # # # 
+    # # # # # # #
     # Messages  #
     # # # # # # #
 
@@ -658,7 +694,7 @@ class Client(user.User):
         The client must be logged in for this to work.
 
         Args:
-            user_name (:obj:`str`) : The name of the user the client will send 
+            user_name (:obj:`str`) : The name of the user the client will send
                 the message to.
             {content}
             {strict}
@@ -729,7 +765,7 @@ class Client(user.User):
     async def cancel_challenge(self, *, delay=0, lifespan=math.inf):
         """
         Cancel an outgoing challenge.
-        
+
         Args:
             {delay}
             {lifespan}
@@ -773,7 +809,7 @@ class Client(user.User):
         """
         Queries the server for a list of public rooms. The result will appear
         as a query response with type 'rooms'.
-        
+
         Args:
             {delay}
             {lifespan}
@@ -785,7 +821,7 @@ class Client(user.User):
             delay=delay, lifespan=lifespan)
 
     @docutils.format()
-    async def query_battles(self, battle_format='', min_elo=None, 
+    async def query_battles(self, battle_format='', min_elo=None,
         delay=0, lifespan=math.inf):
         """
         Queries the server for a list of public battles. The result will appears
@@ -793,7 +829,7 @@ class Client(user.User):
 
         Args:
             {battle_format}
-            min_elo (:obj:`int`) : Minimum elo of the battle. Defaults to None, 
+            min_elo (:obj:`int`) : Minimum elo of the battle. Defaults to None,
                 which will query for all battles regardless of rating.
             {delay}
             {lifespan}
@@ -813,21 +849,27 @@ class Client(user.User):
     # # # # #
 
 
-    def on_disconnect(self):
+    async def on_disconnect(self, reconnecting):
         """
+        |coro|
+
         Hook for subclasses. Called after the client's websocket and aiohttp
         sessions cease.
+
+        Args:
+            reconnecting: True if the client will reconnect, False otherwise
 
         Notes:
             Does nothing by default.
         """
+        print("what"*600)
         pass
 
     async def on_connect(self):
         """
         |coro|
 
-        Hook for subclasses. Called immediately after the client starts it 
+        Hook for subclasses. Called immediately after the client starts it
         connection with the server.
 
         Notes:
@@ -842,8 +884,8 @@ class Client(user.User):
         Hook for subclasses. Called immediately after the client logs in.
 
         Args:
-            login_response (:obj:`dict`) : The sent by the server upon login 
-                attempt. 
+            login_response (:obj:`dict`) : The sent by the server upon login
+                attempt.
 
         Notes:
             Does nothing by default.
@@ -856,9 +898,9 @@ class Client(user.User):
 
         Hook for subclasses. Called when the client receives a room init message
         (generally upon joining a new room)
-    
+
         Args:
-            room_obj (:obj:`room.Room`) : Room object for the room that was 
+            room_obj (:obj:`room.Room`) : Room object for the room that was
                 initialized.
 
         Notes:
@@ -870,11 +912,11 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called when the client receives a room deinit 
+        Hook for subclasses. Called when the client receives a room deinit
         message (generally upon leaving a room, or when a battle expires)
-    
+
         Args:
-            room_obj (:obj:`room.Room`) : Room object for the room that was 
+            room_obj (:obj:`room.Room`) : Room object for the room that was
                 deinitialized.
 
         Notes:
@@ -888,11 +930,11 @@ class Client(user.User):
 
         Hook for subclasses. Called when the client receives query response
         from the server.
-    
+
         Args:
             query_type (:obj:`str`) : The query type.
                 Ex: 'savereplay', 'rooms', 'roomlist', 'userdetails'
-            response (:obj:`dict`) : The json response from the server bundled with 
+            response (:obj:`dict`) : The json response from the server bundled with
                 the response
 
         Notes:
@@ -926,7 +968,7 @@ class Client(user.User):
         |coro|
 
         Hook for subclasses. Called when the client receives a chat message.
-    
+
         Args:
             chat_message (:obj:`showdown.message.ChatMessage`) : An object
                 representing the received message.
@@ -941,9 +983,9 @@ class Client(user.User):
         |coro|
 
         Hook for subclasses. Called when the client receives a private message.
-    
+
         Args:
-            private_message (:obj:`showdown.message.PrivateMessage`) : An object 
+            private_message (:obj:`showdown.message.PrivateMessage`) : An object
                 representing the received message.
 
         Notes:
@@ -957,14 +999,14 @@ class Client(user.User):
 
         Hook for subclasses. Called when the client receives any data from the
         server.
-    
+
         Args:
-            room_id (:obj:`str`) : ID of the room with which the information is 
+            room_id (:obj:`str`) : ID of the room with which the information is
                 associated with. Messages with unspecified IDs default to '
                 lobby', though may not necessarily be associated with 'lobby'.
             inp_type (:obj:`str`) : The type of information received.
                 Ex: 'l' (user leave), 'j' (user join), 'c:' (chat message)
-            params (:obj:`list`) : List of the parameters associated with the 
+            params (:obj:`list`) : List of the parameters associated with the
                 inp_type. Ex: a user leave has params of ['zarel'], where 'zarel'
                 represents the user id of the user that left.
 
