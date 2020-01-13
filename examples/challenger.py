@@ -19,7 +19,7 @@ class ChallengeClient(showdown.Client):
     async def on_private_message(self, pm):
         if pm.recipient == self:
             await self.cancel_challenge()
-            await pm.author.challenge('', 'gen7randombattle')
+            await pm.author.challenge('', 'gen8randombattle')
 
     async def on_challenge_update(self, challenge_data):
         incoming = challenge_data.get('challengesFrom', {})
