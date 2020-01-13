@@ -145,7 +145,7 @@ class Room:
 
 def _get_empty_player_metadata():
     return {
-        'switches': 0, 'faints': 0, 'lead': None, 
+        'switches': 0, 'faints': 0, 'lead': None,
         'teampreview': [], 'nicknames': {},
         'fainted': {}, 'teamsize': None, 'teaminfo': {}
     }
@@ -219,8 +219,8 @@ class Battle(Room):
             'p1': _get_empty_player_metadata(),
             'p2': _get_empty_player_metadata()
         }
-        
-    def update(self, inp_type, *params): 
+
+    def update(self, inp_type, *params):
         #TODO: Fix this up
         # A full implementation that maintains metadata is a bit beyond
         # the scope of my intentions, but could be done probably by
@@ -306,9 +306,6 @@ class Battle(Room):
             ident = params[0][5:]
             teaminfo = self.player_metadata[pid]['teaminfo']
             if params[1] not in teaminfo[ident]['moves']:
-                # Woah isn't this quadratic time?
-                # The list will never get past size 4, so no
-                # Knock on wood of course.
                 teaminfo[ident]['moves'].append(params[1])
         elif inp_type == '-item':
             # Detects item reveals from frisk, etc...
@@ -319,7 +316,7 @@ class Battle(Room):
             memberinfo = self.player_metadata[pid]['teaminfo'][ident]
             memberinfo['curr_item'] = item
             if '[from] move:' in full_params:
-                memberinfo['tricked'] = True 
+                memberinfo['tricked'] = True
                 return # Trick/Switcheroo shenanigans
                 # TODO: maintain some state to track what gets tricked to where
             if not memberinfo['tricked']:
@@ -337,8 +334,8 @@ class Battle(Room):
         elif inp_type == '-mega':
             return # TODO: Update held item with megastone info
 
-            
-            
+
+
 
 
 

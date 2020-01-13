@@ -58,7 +58,7 @@ class User:
         return '<{} `{}`>'.format(self.__class__.__name__, str(self))
 
     def __str__(self):
-        return '{}{}'.format(self.auth.strip(), self.name)    
+        return '{}{}'.format(self.auth.strip(), self.name)
 
     def set_name(self, name):
         """
@@ -74,7 +74,7 @@ class User:
     def name_matches(self, name):
         """
         Checks if the User object's id matches the id of the username passed in.
-        
+
         Args:
             name (obj:`str`) : The name to compare with the User object's id
 
@@ -83,7 +83,7 @@ class User:
 
         Examples:
            >>> User("~Zarel ^_^").name_matches('Zar-el'))
-           True 
+           True
            >>> User("~Zarel ^_^").name_matches('zarel'))
            True
            >>> User("~Zarel ^_^").name_matches('Carl'))
@@ -132,47 +132,47 @@ class User:
         await client.accept_challenge(self.id, team)
 
     @utils.require_client
-    async def send_message(self, content, strict=False, client=None, 
+    async def send_message(self, content, strict=False, client=None,
         delay=0, lifespan=math.inf):
         """
         |coro|
 
-        Uses the specified client or the object's client attribute to send a 
+        Uses the specified client or the object's client attribute to send a
         message to the represented user.
 
         Args:
             content (obj:`str`) : The content of the message to be sent.
             strict (obj:`bool`, optional) : See help(Client.say)
-            client (obj:`showdown.client.Client` or None, optional) : client 
+            client (obj:`showdown.client.Client` or None, optional) : client
                 used to send the message
-            delay (obj:`int` or obj:`float`, optional) : See 
+            delay (obj:`int` or obj:`float`, optional) : See
                 help(Client.add_output)
-            lifespan (obj:`int` or obj:`float`, optional) : See 
+            lifespan (obj:`int` or obj:`float`, optional) : See
                 help(Client.add_output)
 
         Returns:
             None
         """
-        await client.private_message(self.id, content, strict=False, 
+        await client.private_message(self.id, content, strict=False,
             delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def request_user_details(self, client=None, 
+    async def request_user_details(self, client=None,
         delay=0, lifespan=math.inf):
         """
         |coro|
 
-        Uses the specified client or the object's client attribute to request 
+        Uses the specified client or the object's client attribute to request
         details on the user. The response will be sent back as a query response
         with a response_type of 'userdetails'. You can wait for this response
         using the Client.on_query_response method.
-        
+
         Args:
-            client (obj:`showdown.client.Client` or None, optional) : client 
+            client (obj:`showdown.client.Client` or None, optional) : client
                 used to request the details.
-            delay (obj:`int` or obj:`float`, optional) : See 
+            delay (obj:`int` or obj:`float`, optional) : See
                 help(Client.add_output).
-            lifespan (obj:`int` or obj:`float`, optional) : See 
+            lifespan (obj:`int` or obj:`float`, optional) : See
                 help(Client.add_output).
 
         Returns:
@@ -240,14 +240,16 @@ class User:
     @utils.require_client_session
     async def get_register_time_async(self, session):
         await self._get_user_data_async(session)
-        return self._user_data['registertime'] 
+        return self._user_data['registertime']
 
     def get_register_name(self):
         """
         Gets the name with which the user's account was registered.
 
         Returns:
-            A string representing the account's registration name
+            A string representing the account's registration name. This will
+            usually include extra information that was present in the name at
+            the time of registration.
 
         Examples:
             >>> showdown.User('crashy').get_register_name()
@@ -259,7 +261,7 @@ class User:
     @utils.require_client_session
     async def get_register_name_async(self, session=None):
         await self._get_user_data_async(session)
-        return self._user_data['username'] 
+        return self._user_data['username']
 
     def get_ladder(self, server_id=None):
         """
@@ -296,7 +298,7 @@ class User:
                 server_id = self.client.server.id
             else:
                 server_id = 'showdown'
-        result = requests.get(server.ACTION_URL_BASE.format(server_id=server_id), 
+        result = requests.get(server.ACTION_URL_BASE.format(server_id=server_id),
             params=params).text
         return utils.parse_http_input(result)
 
