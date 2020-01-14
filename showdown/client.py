@@ -862,7 +862,6 @@ class Client(user.User):
         Notes:
             Does nothing by default.
         """
-        print("what"*600)
         pass
 
     async def on_connect(self):
