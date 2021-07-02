@@ -2,6 +2,7 @@
 """Module for Room and Battle objects"""
 
 import math
+import json
 import time
 from collections import deque
 from . import utils, user
@@ -200,8 +201,12 @@ class Battle(Room):
         loser_id (:obj:`str`) : String representing the match id of the
             battle's loser. Ex: 'p1', 'p2'
         ended (:obj:`bool`) : True if a player has won the match, else False
-
-        TODO: Entries for new attributes
+        outcome: Outcome of the battle. One of: (None, "knockout", "forfeit",
+            "timeout")
+        player_metadata (:obj:`dict`) : Metadata about the players in the battle
+        latest_request (:obj:`dict`) : The most recently received "Choice
+            Request" data. See SIM-PROTOCOL.md on the official showdown repo
+            for more details.
     """
     def __init__(self, room_id, client=None, max_logs=5000):
         Room.__init__(self, room_id, client=client, max_logs=max_logs)
@@ -219,11 +224,12 @@ class Battle(Room):
             'p1': _get_empty_player_metadata(),
             'p2': _get_empty_player_metadata()
         }
+        self.latest_request = None
 
     def update(self, inp_type, *params):
         #TODO: Fix this up
-        # A full implementation that maintains metadata is a bit beyond
-        # the scope of my intentions, but could be done probably by
+        # A full implementation that maintains metadata about the battle is a
+        # bit beyond the scope of my intentions, but could be done probably by
         # looking into how the official client tracks state
         """
         Updates the Room's state from input. This method isn't intended to
@@ -290,6 +296,10 @@ class Battle(Room):
             self.end_time = time.time()
             if not self.outcome:
                 self.outcome = 'knockout'
+        elif inp_type == 'request':
+            if not params[0]:
+                return
+            self.latest_request = json.loads(params[0])
         elif inp_type == '-message':
             msg = params[0]
             if msg.endswith(' forfeited.'):
@@ -333,11 +343,6 @@ class Battle(Room):
                 memberinfo['start_item'] = item
         elif inp_type == '-mega':
             return # TODO: Update held item with megastone info
-
-
-
-
-
 
 
     @utils.require_client
@@ -404,27 +409,39 @@ class Battle(Room):
             delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def move(self, move_id, mega=False, client=None,
+    async def move(self, move_id, mega=False, dynamax=False, zmove=False, client=None,
         delay=0, lifespan=math.inf):
         """
         |coro|
 
-        Uses the specified client or the object's client attribute to turn on
-        the battle timer. The client must be one of the players in the battle
-        for this to work.
+        Selects the move specified by move_id to be used in the next turn. The
+        client must be one of the players in this battle for this to work.
+
+        Args:
+            move_id:
+            mega: set to True to specify mega evolution in this turn
+            dynamax: set to True to dynamax in this turn
+            zmove: set to True to use a Z-move this turn
+
         """
+        modifier = ''
+        if mega:
+            modifier = 'mega'
+        if dynamax:
+            modifier = 'max'
+        if zmove:
+            modifier = 'zmove'
         await self.client.use_command(self.id, 'choose', 'move {}{}'
-            .format(move_id, ' mega' if mega else ''),
+            .format(move_id, modifier),
             delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def undo(self, client=None, delay=0, lifespan=math.inf):
+    async def undo_move(self, client=None, delay=0, lifespan=math.inf):
         """
         |coro|
 
-        Uses the specified client or the object's client attribute to undo their
-        last move or switch. The player must be on of the players in the battle
-        for this to work.
+        Cancels the last move sent. The client must be one of the
+        players in the battle for this to work.
         """
         await self.client.use_comand(self.id, 'undo',
             delay=delay, lifespan=lifespan)

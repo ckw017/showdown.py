@@ -545,7 +545,7 @@ class Client(user.User):
             delay=delay, lifespan=lifespan)
 
     @docutils.format()
-    async def search_battles(self, team, battle_format,
+    async def search_battles(self, team, battle_format, hide_from_spectators=False,
         delay=0, lifespan=math.inf):
         """
         Uploads the specified team and searches for battles for the format
@@ -562,7 +562,8 @@ class Client(user.User):
         """
         battle_format = utils.name_to_id(battle_format)
         await self.upload_team(team, delay=delay, lifespan=lifespan)
-        await self.add_output('|/search {}'.format(battle_format),
+        await self.add_output('|{}/search {}'.format(
+            '/hidenext ' if hide_from_spectators else '', battle_format),
             delay=delay, lifespan=lifespan)
 
     @docutils.format()
