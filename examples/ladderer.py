@@ -16,7 +16,7 @@ with open("./examples/data/mono-ghost.txt") as f:
 
 class LadderClient(showdown.Client):
     async def on_login(self, login_data):
-        await self.search_battles(team, "gen7monotype")
+        await self.search_battles(team, "gen8monotype")
 
     async def on_receive(self, *params):
         print(params)
