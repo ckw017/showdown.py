@@ -755,8 +755,6 @@ class Client(user.User):
             {strict_error}
         """
         content = utils.clean_message_content(content, strict=strict)
-        if room_id == "lobby":
-            room_id = ""
         await self.add_output(
             "{}|{}".format(room_id, content), delay=delay, lifespan=lifespan
         )
