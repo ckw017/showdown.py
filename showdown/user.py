@@ -35,9 +35,7 @@ class User:
         if not user_str:
             self.auth = " "
             name = ""
-        elif user_str[0].lower() not in (
-            string.ascii_lowercase + string.digits
-        ):
+        elif user_str[0].lower() not in (string.ascii_lowercase + string.digits):
             self.auth = user_str[0]
             name = user_str[1:]
         else:
@@ -162,9 +160,7 @@ class User:
         )
 
     @utils.require_client
-    async def request_user_details(
-        self, client=None, delay=0, lifespan=math.inf
-    ):
+    async def request_user_details(self, client=None, delay=0, lifespan=math.inf):
         """
         |coro|
 
@@ -199,9 +195,7 @@ class User:
     async def _get_user_data_async(self, session, force_update=False):
         if not force_update and self._user_data is not None:
             return
-        response = await session.get(
-            USER_DATA_URL_BASE.format(user_id=self.id)
-        )
+        response = await session.get(USER_DATA_URL_BASE.format(user_id=self.id))
         self._user_data = await response.json()
 
     def get_ratings(self):

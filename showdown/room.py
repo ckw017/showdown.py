@@ -120,9 +120,7 @@ class Room:
         attribute. The actual info will be sent to the client with inp_type
         of 'popup'.
         """
-        await client.use_command(
-            self.id, "roomauth", delay=delay, lifespan=lifespan
-        )
+        await client.use_command(self.id, "roomauth", delay=delay, lifespan=lifespan)
 
     @utils.require_client
     async def say(self, content, client=None, delay=0, lifespan=math.inf):
@@ -475,14 +473,10 @@ class Battle(Room):
         Cancels the last move sent. The client must be one of the
         players in the battle for this to work.
         """
-        await self.client.use_comand(
-            self.id, "undo", delay=delay, lifespan=lifespan
-        )
+        await self.client.use_comand(self.id, "undo", delay=delay, lifespan=lifespan)
 
     @utils.require_client
-    async def start_poke(
-        self, start_id, client=None, delay=0, lifespan=math.inf
-    ):
+    async def start_poke(self, start_id, client=None, delay=0, lifespan=math.inf):
         """
         |coro|
 

@@ -155,9 +155,7 @@ def clean_message_content(content, strict=False):
                 "message will not be sent."
             )
         else:
-            warnings.warn(
-                "Message content is too long (>300 characters). Truncating."
-            )
+            warnings.warn("Message content is too long (>300 characters). Truncating.")
             content = content[:300]
     return content
 
