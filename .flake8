@@ -11,5 +11,6 @@ ignore =
   W503
   W504
   N
+  T
 avoid-escape = no
 
