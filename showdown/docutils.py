@@ -101,12 +101,16 @@ for name, val in dict(globals()).items():
 def format(indent=3):
     full_indent = indent * "    "
     partial_indent = (indent - 1) * "    "
-    docstrings = {k: v.format(indent=full_indent) for k, v in base_docstrings.items()}
+    docstrings = {
+        k: v.format(indent=full_indent) for k, v in base_docstrings.items()
+    }
     coro_docstring = base_coro_docstring.format(indent=partial_indent)
 
     def wrapper(func):
         doc = func.__doc__
-        if inspect.iscoroutinefunction(func) and not doc.startswith(coro_docstring):
+        if inspect.iscoroutinefunction(func) and not doc.startswith(
+            coro_docstring
+        ):
             doc = coro_docstring + doc
         doc = doc.format(**docstrings)
         func.__doc__ = doc

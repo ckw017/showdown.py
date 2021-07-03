@@ -115,7 +115,9 @@ class Client(user.User):
         super().__init__(name, client=self)
 
         # URL setup
-        self.server = server.Server(id=server_id, host=server_host, client=self)
+        self.server = server.Server(
+            id=server_id, host=server_host, client=self
+        )
         self.websocket_url = self.server.generate_ws_url()
         logger.info("Using websocket at {}".format(self.websocket_url))
 
@@ -182,7 +184,10 @@ class Client(user.User):
                     self.server.set_session(self.session)
                     for att in dir(self):
                         att = getattr(self, att)
-                        if hasattr(att, "_is_interval_task") and att._is_interval_task:
+                        if (
+                            hasattr(att, "_is_interval_task")
+                            and att._is_interval_task
+                        ):
                             self._tasks.append(asyncio.ensure_future(att()))
                     done, pending = await asyncio.wait(
                         self._tasks, return_when=asyncio.FIRST_COMPLETED
@@ -211,7 +216,9 @@ class Client(user.User):
                     "Client.start(autoreconnect=False)."
                 )
 
-            logger.info("Sleeping for {}s before reconnecting".format(reconnect_delay))
+            logger.info(
+                "Sleeping for {}s before reconnecting".format(reconnect_delay)
+            )
             await asyncio.sleep(reconnect_delay)
             reconnect_delay = min(
                 MAX_RECONNECT_SLEEP, reconnect_delay * 2
@@ -338,7 +345,9 @@ class Client(user.User):
         assert type(lifespan) in (int, float), "lifespan must be float or int"
         assert type(delay) in (int, float), "delay must be float or int"
         assert delay < lifespan, "Delay should be strictly less than lifespan"
-        assert delay >= 0 and lifespan >= 0, "Lifespan and delay should be nonnegative"
+        assert (
+            delay >= 0 and lifespan >= 0
+        ), "Lifespan and delay should be nonnegative"
 
         now = time.time()
         ignore_before = now + delay
@@ -392,12 +401,16 @@ class Client(user.User):
                     self.on_query_response(response_type, data), transient=True
                 )
                 if response_type == "savereplay":
-                    self.add_task(self.server.save_replay_async(data), transient=True)
+                    self.add_task(
+                        self.server.save_replay_async(data), transient=True
+                    )
 
             # Challenge updates
             elif inp_type == "updatechallenges":
                 self.challenges = json.loads(params[0])
-                self.add_task(self.on_challenge_update(self.challenges), transient=True)
+                self.add_task(
+                    self.on_challenge_update(self.challenges), transient=True
+                )
 
             # Messages
             elif inp_type == "c:" or inp_type == "c":
@@ -409,14 +422,18 @@ class Client(user.User):
                 chat_message = message.ChatMessage(
                     room_id, timestamp, author_str, content, client=self
                 )
-                self.add_task(self.on_chat_message(chat_message), transient=True)
+                self.add_task(
+                    self.on_chat_message(chat_message), transient=True
+                )
             elif inp_type == "pm":
                 author_str, recipient_str, *content = params
                 content = "|".join(content)
                 private_message = message.PrivateMessage(
                     author_str, recipient_str, content, client=self
                 )
-                self.add_task(self.on_private_message(private_message), transient=True)
+                self.add_task(
+                    self.on_private_message(private_message), transient=True
+                )
 
             # Rooms
             elif inp_type == "init":
@@ -437,7 +454,9 @@ class Client(user.User):
             if isinstance(self.rooms.get(room_id, None), room.Room):
                 self.rooms[room_id].add_content(inp)
 
-            self.add_task(self.on_receive(room_id, inp_type, params), transient=True)
+            self.add_task(
+                self.on_receive(room_id, inp_type, params), transient=True
+            )
 
     async def login(self, avatar_id=0):
         """
@@ -465,7 +484,9 @@ class Client(user.User):
         else:
             logger.info("Login succeeded")
         await self.websocket.send(
-            '["|/trn {},{},{}"]'.format(self.name, avatar_id, login_data["assertion"])
+            '["|/trn {},{},{}"]'.format(
+                self.name, avatar_id, login_data["assertion"]
+            )
         )
         self.add_task(self.on_login(login_data), transient=True)
 
@@ -527,7 +548,9 @@ class Client(user.User):
         )
 
     @docutils.format()
-    async def validate_team(self, team, battle_format, *, delay=0, lifespan=math.inf):
+    async def validate_team(
+        self, team, battle_format, *, delay=0, lifespan=math.inf
+    ):
         """
         Uploads the specified team to the server and validates for the
         format specified by battle_format.
@@ -677,7 +700,9 @@ class Client(user.User):
         """
         assert (
             battle_id in self.rooms
-        ), "Client is not in the room " "{}, replay cannot be saved.".format(battle_id)
+        ), "Client is not in the room " "{}, replay cannot be saved.".format(
+            battle_id
+        )
         if output_path is None:
             output_path = "{}.txt".format(battle_id)
         assert type(output_path) is str, "output_path must be a string."
@@ -734,7 +759,9 @@ class Client(user.User):
         )
 
     @docutils.format()
-    async def say(self, room_id, content, strict=False, delay=0, lifespan=math.inf):
+    async def say(
+        self, room_id, content, strict=False, delay=0, lifespan=math.inf
+    ):
         """
         Sends a chat message to the room specified by room_id. The client must
         be logged in for this to work
@@ -788,10 +815,14 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.use_command("", "cancelchallenge", delay=delay, lifespan=lifespan)
+        await self.use_command(
+            "", "cancelchallenge", delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
-    async def accept_challenge(self, user_id, team, *, delay=0, lifespan=math.inf):
+    async def accept_challenge(
+        self, user_id, team, *, delay=0, lifespan=math.inf
+    ):
         """
         Accept a challenge from the player specified by user_id
 
@@ -802,7 +833,9 @@ class Client(user.User):
             {lifespan}
         """
         await self.upload_team(team)
-        await self.use_command("", "accept", user_id, delay=delay, lifespan=lifespan)
+        await self.use_command(
+            "", "accept", user_id, delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
     async def reject_challenge(self, user_id, *, delay=0, lifespan=math.inf):
@@ -814,7 +847,9 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.user_command("", "reject", user_id, delay=delay, lifespan=lifespan)
+        await self.user_command(
+            "", "reject", user_id, delay=delay, lifespan=lifespan
+        )
 
     # # # # # #
     # Queries #

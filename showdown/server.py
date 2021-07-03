@@ -18,7 +18,9 @@ WEBSOCKET_URL_BASE = (
     "ws://{server_hostname}/showdown/{num_triplet}/{char_octet}/websocket"
 )
 
-REPLAY_HEADERS = {"content-type": "application/x-www-form-urlencoded; charset=UTF-8"}
+REPLAY_HEADERS = {
+    "content-type": "application/x-www-form-urlencoded; charset=UTF-8"
+}
 
 DEFAULT_AVATARS = {
     "bw2elesa",
@@ -42,13 +44,17 @@ def get_host(server_id):
     logger.info("Requesting server host from {}".format(info_url))
     response = requests.get(info_url)
     if not response.ok:
-        raise ValueError("Info for server `{}` is unavailable.".format(server_id))
+        raise ValueError(
+            "Info for server `{}` is unavailable.".format(server_id)
+        )
     try:
         data = response.json()
         return "{}:{}".format(data["host"], data["port"])
     except:
         traceback.print_exc()
-        raise ValueError("Malformed server_info data at `{}`.".format(info_url))
+        raise ValueError(
+            "Malformed server_info data at `{}`.".format(info_url)
+        )
 
 
 def _generate_ws_triplet():
@@ -213,7 +219,9 @@ class Server:
         return result
 
     @require_session
-    async def login_async(self, name, password, challstr, challengekeyid, session=None):
+    async def login_async(
+        self, name, password, challstr, challengekeyid, session=None
+    ):
         """
         |coro|
 
