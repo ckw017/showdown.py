@@ -367,6 +367,7 @@ class Client(user.User):
 
         inputs = utils.parse_socket_input(socket_input)
         for room_id, inp in inputs:
+            room_id = room_id or "lobby"
             logger.debug("||| Parsing:\n{}".format(inp))
             inp_type, params = utils.parse_text_input(inp)
 
