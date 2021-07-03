@@ -2,18 +2,14 @@
 """Module for showdown's Client class"""
 import asyncio
 import aiohttp
-import requests
 import websockets
 import json
 import time
 import logging
 import traceback
-import warnings
 import math
 import signal
-import inspect
-from functools import wraps, partial
-from time import sleep
+from functools import wraps
 from . import message, room, server, user, utils, docutils
 
 # Keyboard interrupts should continue to work
@@ -23,13 +19,15 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 logger = logging.getLogger(__name__)
 
 DEFAULT_RECONNECT_SLEEP = 5
-MAX_RECONNECT_SLEEP = 180 # Three minutes
+MAX_RECONNECT_SLEEP = 180  # Three minutes
+
 
 class OutputToken:
     """
     Class used with the client's output queue to schedule when outputs should
     be used, delayed, or discarded.
     """
+
     def __init__(self, content, ignore_before, discard_after):
         self.content = [content] if type(content) is str else content
         self.ignore_before = ignore_before
@@ -42,6 +40,7 @@ class OutputToken:
 
     def ready(self):
         return time.time() > self.ignore_before
+
 
 class Client(user.User):
     """
@@ -89,8 +88,8 @@ class Client(user.User):
             to the server websocket.
         rooms (dict) : Dictionary with entries of {str : showdown.room.Room}
             that maps room_id's to Rooms the client is currently connected to.
-        max_room_logs (int) : The maximum number of logs stored in this client's
-            Room objects.
+        max_room_logs (int) : The maximum number of logs stored in this
+            client's Room objects.
         autologin (bool) : Bool denoting whether or not the client will
             automatically login on a call to the Client.start method. Can be
             set by using a keyword argument in Client.start
@@ -102,14 +101,25 @@ class Client(user.User):
             with the on_interval decorator
     """
 
-    def __init__(self, name='', password='', *, loop=None, max_room_logs=5000,
-                server_id='showdown', server_host=None, strict_exceptions=False):
+    def __init__(
+        self,
+        name="",
+        password="",
+        *,
+        loop=None,
+        max_room_logs=5000,
+        server_id="showdown",
+        server_host=None,
+        strict_exceptions=False
+    ):
         super().__init__(name, client=self)
 
         # URL setup
-        self.server = server.Server(id=server_id, host=server_host, client=self)
+        self.server = server.Server(
+            id=server_id, host=server_host, client=self
+        )
         self.websocket_url = self.server.generate_ws_url()
-        logger.info('Using websocket at {}'.format(self.websocket_url))
+        logger.info("Using websocket at {}".format(self.websocket_url))
 
         # Initialize client attributes
         self.password = password
@@ -138,9 +148,9 @@ class Client(user.User):
         Starts the event loop stored in the Client's loop attribute.
 
         Args:
-            autologin (:obj:`bool`, optional) : Bool denoting whether or not the
-                client will automatically login after connecting to the server.
-                Defaults to True.
+            autologin (:obj:`bool`, optional) : Bool denoting whether or not
+                the client will automatically login after connecting to the
+                server. Defaults to True.
 
         Returns:
             bool : True if exited attached to existing loop, False otherwise
@@ -148,9 +158,11 @@ class Client(user.User):
         self.autologin = autologin
         self.autoreconnect = autoreconnect
         if self.loop.is_running():
-            task = self.add_task(self._handler())
-            logger.info("The client's event loop was already running. "
-                        "The client will run as a new task on the loop.")
+            self.add_task(self._handler())
+            logger.info(
+                "The client's event loop was already running. "
+                "The client will run as a new task on the loop."
+            )
             return True
         else:
             self.loop.run_until_complete(self._handler())
@@ -165,17 +177,21 @@ class Client(user.User):
         reconnect_delay = DEFAULT_RECONNECT_SLEEP
         while True:
             try:
-                async with websockets.connect(self.websocket_url) as self.websocket, \
-                                        aiohttp.ClientSession() as self.session:
+                async with websockets.connect(
+                    self.websocket_url
+                ) as self.websocket, aiohttp.ClientSession() as self.session:
                     self.connected = True
                     self.server.set_session(self.session)
-                    tasks = []
                     for att in dir(self):
                         att = getattr(self, att)
-                        if hasattr(att, '_is_interval_task') and att._is_interval_task:
+                        if (
+                            hasattr(att, "_is_interval_task")
+                            and att._is_interval_task
+                        ):
                             self._tasks.append(asyncio.ensure_future(att()))
-                    done, pending = await asyncio.wait(self._tasks,
-                                        return_when=asyncio.FIRST_COMPLETED)
+                    done, pending = await asyncio.wait(
+                        self._tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
                     for task in pending:
                         task.cancel()
                     for task in done:
@@ -183,44 +199,43 @@ class Client(user.User):
                             raise task.exception()
             except:
                 import traceback
+
                 traceback.print_exc()
                 await self._on_disconnect(self.autoreconnect)
                 if not self.autoreconnect:
-                    logger.info("An exception has occurred. The bot will "\
-                        "go offline. To reconnect automatically start the "\
+                    logger.info(
+                        "An exception has occurred. The bot will "
+                        "go offline. To reconnect automatically start the "
                         "bot with Client.start(autoreconnect=True)."
                     )
                     return
 
-                logger.info("An exception has occurred. The bot will "\
-                    "reconnect. To forgo autoreconnect start the bot with "\
+                logger.info(
+                    "An exception has occurred. The bot will "
+                    "reconnect. To forgo autoreconnect start the bot with "
                     "Client.start(autoreconnect=False)."
                 )
 
-            logger.info("Sleeping for {}s before reconnecting".format(
-                reconnect_delay
-            ))
+            logger.info(
+                "Sleeping for {}s before reconnecting".format(reconnect_delay)
+            )
             await asyncio.sleep(reconnect_delay)
             reconnect_delay = min(
-                MAX_RECONNECT_SLEEP,
-                reconnect_delay * 2
-            ) # Bounded exponential backoff
+                MAX_RECONNECT_SLEEP, reconnect_delay * 2
+            )  # Bounded exponential backoff
 
     async def _on_disconnect(self, reconnecting):
         if self.connected:
             for t in self._tasks + list(self._transient_tasks):
                 if not t.cancelled():
                     t.cancel()
-                    logger.debug('Cancelled: {}'.format(t))
+                    logger.debug("Cancelled: {}".format(t))
             self._set_defaults()
             utils.require_coro(self.on_disconnect)
             await self.on_disconnect(reconnecting)
 
     def add_task(self, coro, transient=False):
-        task = asyncio.ensure_future(
-                coro,
-                loop = self.loop
-        )
+        task = asyncio.ensure_future(coro, loop=self.loop)
         if not transient:
             self._tasks.append(task)
         else:
@@ -249,6 +264,7 @@ class Client(user.User):
                     '''Checks the ou ladder ever 3 seconds'''
                     await self.query_battles(battle_format='gen7ou')
         """
+
         def decorator(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
@@ -257,8 +273,10 @@ class Client(user.User):
                     await func(*args, **kwargs)
                     elapsed = time.time() - start_time
                     await asyncio.sleep(max(0, interval - elapsed))
+
             wrapper._is_interval_task = True
             return wrapper
+
         return decorator
 
     @on_interval()
@@ -267,20 +285,21 @@ class Client(user.User):
         self._transient_tasks.remove(task)
         if task.exception():
             if self.strict_exceptions:
-                logger.info("Exception caught in Client._transient_task_reaper. "\
-                    "Disconnecting. Set strict_exceptions=False if"\
+                logger.info(
+                    "Exception caught in Client._transient_task_reaper. "
+                    "Disconnecting. Set strict_exceptions=False if"
                     " you don't want this behavior"
                 )
                 raise task.exception()
             try:
                 raise task.exception()
             except:
-                logger.info("Exception caught in Client._transient_task_reaper. "\
-                    "Ignoring and continuing. Set strict_exceptions=True if"\
+                logger.info(
+                    "Exception caught in Client._transient_task_reaper. "
+                    "Ignoring and continuing. Set strict_exceptions=True if"
                     " you don't want this behavior"
                 )
                 traceback.print_exc()
-
 
     @on_interval()
     async def sender(self):
@@ -294,21 +313,20 @@ class Client(user.User):
             None
         """
         out = await self.output_queue.get()
-        now = time.time()
         if not out.ready():
-            logger.info('>>> Requeuing {}'.format(out))
+            logger.info(">>> Requeuing {}".format(out))
             await self.output_queue.put(out)
-            await asyncio.sleep(.05)
+            await asyncio.sleep(0.05)
             return
         if out.expired():
-            logger.info('>>> Discarding {}'.format(out))
+            logger.info(">>> Discarding {}".format(out))
             out.discarded = True
             return
         content = [out.content] if type(out.content) is str else out.content
-        logger.info('>>> Sending:\n{}'.format(content))
+        logger.info(">>> Sending:\n{}".format(content))
         await self.websocket.send(json.dumps(content))
         out.sent = True
-        await asyncio.sleep(len(content) * .5)
+        await asyncio.sleep(len(content) * 0.5)
 
     @docutils.format()
     async def add_output(self, content, delay=0, lifespan=math.inf):
@@ -316,22 +334,20 @@ class Client(user.User):
         Adds output to be sent across the client's connection to the server.
 
         Args:
-            content (:obj:`str` or obj:`list` of obj:`str`) : Content to be sent
-                to the server.
+            content (:obj:`str` or obj:`list` of obj:`str`) : Content to be
+                sent to the server.
             {delay}
             {lifespan}
 
         Returns:
             namedtuple : Token representing the content to be sent.
         """
-        assert type(lifespan) in (int, float), \
-            'lifespan must be float or int'
-        assert type(delay) in (int, float), \
-            'delay must be float or int'
-        assert delay < lifespan, \
-            'Delay should be strictly less than lifespan'
-        assert delay >= 0 and lifespan >= 0, \
-            'Lifespan and delay should be nonnegative'
+        assert type(lifespan) in (int, float), "lifespan must be float or int"
+        assert type(delay) in (int, float), "delay must be float or int"
+        assert delay < lifespan, "Delay should be strictly less than lifespan"
+        assert (
+            delay >= 0 and lifespan >= 0
+        ), "Lifespan and delay should be nonnegative"
 
         now = time.time()
         ignore_before = now + delay
@@ -349,130 +365,129 @@ class Client(user.User):
         can hook into the input through Client.on_receive.
         """
         socket_input = await self.websocket.recv()
-        logger.debug('<<< Received:\n{}'.format(socket_input))
+        logger.debug("<<< Received:\n{}".format(socket_input))
 
-        #Showdown sends this response on initial connection
-        if socket_input == 'o':
-            logger.info('Connected on {}'.format(self.websocket_url))
+        # Showdown sends this response on initial connection
+        if socket_input == "o":
+            logger.info("Connected on {}".format(self.websocket_url))
             self.connected = True
             self.add_task(self.on_connect())
             return
 
         inputs = utils.parse_socket_input(socket_input)
         for room_id, inp in inputs:
-            logger.debug('||| Parsing:\n{}'.format(inp))
+            logger.debug("||| Parsing:\n{}".format(inp))
             inp_type, params = utils.parse_text_input(inp)
 
-            #Set challstr attributes and autologin
-            if inp_type == 'challstr':
+            # Set challstr attributes and autologin
+            if inp_type == "challstr":
                 self.challengekeyid, self.challstr = params
                 if self.name and self.password and self.autologin:
                     await self.login()
                 elif self.autologin:
-                    msg = ("Cannot login without username and password. If "
-                           "you don't want your client to be logged in, "
-                           "you can use Client.start(autologin=False).")
+                    msg = (
+                        "Cannot login without username and password. If "
+                        "you don't want your client to be logged in, "
+                        "you can use Client.start(autologin=False)."
+                    )
                     raise Exception(msg)
 
-            #Process query response
-            elif inp_type == 'queryresponse':
-                response_type, data = params[0], '|'.join(params[1:])
+            # Process query response
+            elif inp_type == "queryresponse":
+                response_type, data = params[0], "|".join(params[1:])
                 data = json.loads(data)
                 self.add_task(
-                    self.on_query_response(response_type, data),
-                    transient=True
+                    self.on_query_response(response_type, data), transient=True
                 )
-                if response_type == 'savereplay':
+                if response_type == "savereplay":
                     self.add_task(
-                        self.server.save_replay_async(data),
-                        transient=True
+                        self.server.save_replay_async(data), transient=True
                     )
 
-            #Challenge updates
-            elif inp_type == 'updatechallenges':
+            # Challenge updates
+            elif inp_type == "updatechallenges":
                 self.challenges = json.loads(params[0])
                 self.add_task(
-                    self.on_challenge_update(self.challenges),
-                        transient=True
+                    self.on_challenge_update(self.challenges), transient=True
                 )
 
-            #Messages
-            elif inp_type == 'c:' or inp_type == 'c':
+            # Messages
+            elif inp_type == "c:" or inp_type == "c":
                 timestamp = None
-                if inp_type == 'c:':
+                if inp_type == "c:":
                     timestamp, params = int(params[0]), params[1:]
                 author_str, *content = params
-                content = '|'.join(content)
-                chat_message = message.ChatMessage(room_id, timestamp,
-                    author_str, content, client=self)
-                self.add_task(
-                    self.on_chat_message(chat_message),
-                    transient=True
+                content = "|".join(content)
+                chat_message = message.ChatMessage(
+                    room_id, timestamp, author_str, content, client=self
                 )
-            elif inp_type == 'pm':
-                author_str, recipient_str, *content = params
-                content = '|'.join(content)
-                private_message = message.PrivateMessage(
-                    author_str, recipient_str, content, client=self)
                 self.add_task(
-                    self.on_private_message(private_message),
-                    transient=True
+                    self.on_chat_message(chat_message), transient=True
+                )
+            elif inp_type == "pm":
+                author_str, recipient_str, *content = params
+                content = "|".join(content)
+                private_message = message.PrivateMessage(
+                    author_str, recipient_str, content, client=self
+                )
+                self.add_task(
+                    self.on_private_message(private_message), transient=True
                 )
 
-            #Rooms
-            elif inp_type == 'init':
+            # Rooms
+            elif inp_type == "init":
                 room_type = params[0]
                 room_obj = room.class_map.get(room_type, room.Room)(
-                    room_id, client=self, max_logs=self.max_room_logs)
-                self.rooms[room_id] = room_obj
-                self.add_task(
-                    self.on_room_init(room_obj),
-                    transient=True
+                    room_id, client=self, max_logs=self.max_room_logs
                 )
-            elif inp_type == 'deinit':
+                self.rooms[room_id] = room_obj
+                self.add_task(self.on_room_init(room_obj), transient=True)
+            elif inp_type == "deinit":
                 if room_id in self.rooms:
                     self.add_task(
                         self.on_room_deinit(self.rooms.pop(room_id)),
-                        transient=True
+                        transient=True,
                     )
 
-            #add content to proper room
+            # add content to proper room
             if isinstance(self.rooms.get(room_id, None), room.Room):
                 self.rooms[room_id].add_content(inp)
 
             self.add_task(
-                self.on_receive(room_id, inp_type, params),
-                transient=True
+                self.on_receive(room_id, inp_type, params), transient=True
             )
 
     async def login(self, avatar_id=0):
         """
         |coro|
 
-        Logins in the user using the name, password, challstr and challengekeyid
-        paramaters.
+        Logins in the user using the name, password, challstr and
+        challengekeyid parameters.
         """
         if not self.challengekeyid:
-            raise Exception('Cannot login, challstr has not been received yet')
+            raise Exception("Cannot login, challstr has not been received yet")
         if not self.name:
-            raise Exception('Cannot login, no username has been specified')
+            raise Exception("Cannot login, no username has been specified")
         if not self.password:
-            raise Exception('Cannot login, no password has been specified')
+            raise Exception("Cannot login, no password has been specified")
 
         logger.info('Logging in as "{}"'.format(self.name))
-        login_data = await self.server.login_async(self.name,
-            self.password, self.challstr, self.challengekeyid)
-        if not login_data['actionsuccess']:
-            raise ValueError('Failed to log in as user `{}`.'
-                ' Raw login result:\n{}'.format(self.name, result_data))
-        else:
-            logger.info('Login succeeded')
-        await self.websocket.send('["|/trn {},{},{}"]'
-            .format(self.name, avatar_id, login_data['assertion']))
-        self.add_task(
-            self.on_login(login_data),
-            transient=True
+        login_data = await self.server.login_async(
+            self.name, self.password, self.challstr, self.challengekeyid
         )
+        if not login_data["actionsuccess"]:
+            raise ValueError(
+                "Failed to log in as user `{}`."
+                " Raw login result:\n{}".format(self.name, login_data)
+            )
+        else:
+            logger.info("Login succeeded")
+        await self.websocket.send(
+            '["|/trn {},{},{}"]'.format(
+                self.name, avatar_id, login_data["assertion"]
+            )
+        )
+        self.add_task(self.on_login(login_data), transient=True)
 
     @docutils.format()
     async def set_avatar(self, avatar_id, delay=0, lifespan=math.inf):
@@ -484,12 +499,14 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.add_output('|/avatar {}'.format(avatar_id),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "|/avatar {}".format(avatar_id), delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
-    async def use_command(self, room_id, command_name, *args,
-        delay=0, lifespan=math.inf):
+    async def use_command(
+        self, room_id, command_name, *args, delay=0, lifespan=math.inf
+    ):
         """
         Sends a generic command to the specified room. For example, to send the
         `/mute user, No spamming!` command in the Monotype room, you can use
@@ -502,9 +519,11 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.add_output('{}|/{} {}'.format(
-            room_id, command_name, ', '.join(args)),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "{}|/{} {}".format(room_id, command_name, ", ".join(args)),
+            delay=delay,
+            lifespan=lifespan,
+        )
 
     # # # # # # # # # # # #
     # Ladder interactions #
@@ -523,12 +542,14 @@ class Client(user.User):
             {lifespan}
         """
         team_str = utils.to_team_str(team)
-        await self.add_output('|/utm {}'.format(team_str),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "|/utm {}".format(team_str), delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
-    async def validate_team(self, team, battle_format, *,
-        delay=0, lifespan=math.inf):
+    async def validate_team(
+        self, team, battle_format, *, delay=0, lifespan=math.inf
+    ):
         """
         Uploads the specified team to the server and validates for the
         format specified by battle_format.
@@ -539,14 +560,21 @@ class Client(user.User):
             {lifespan}
         """
         battle_format = utils.name_to_id(battle_format)
-        team = team or 'null'
+        team = team or "null"
         await self.upload_team(team, delay=delay, lifespan=lifespan)
-        await self.add_output('|/vtm {}'.format(battle_format),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "|/vtm {}".format(battle_format), delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
-    async def search_battles(self, team, battle_format, hide_from_spectators=False,
-        delay=0, lifespan=math.inf):
+    async def search_battles(
+        self,
+        team,
+        battle_format,
+        hide_from_spectators=False,
+        delay=0,
+        lifespan=math.inf,
+    ):
         """
         Uploads the specified team and searches for battles for the format
         specified by battle_format.
@@ -558,13 +586,18 @@ class Client(user.User):
 
         Notes:
             You can specify the team to be None or the empty string for
-            battle_formats like randombattles, where no team is needed to be provided.
+            battle_formats like randombattles, where no team is needed to be
+            provided.
         """
         battle_format = utils.name_to_id(battle_format)
         await self.upload_team(team, delay=delay, lifespan=lifespan)
-        await self.add_output('|{}/search {}'.format(
-            '/hidenext ' if hide_from_spectators else '', battle_format),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "|{}/search {}".format(
+                "/hidenext " if hide_from_spectators else "", battle_format
+            ),
+            delay=delay,
+            lifespan=lifespan,
+        )
 
     @docutils.format()
     async def cancel_search(self, *, delay=0, lifespan=math.inf):
@@ -575,8 +608,7 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.add_output('|/cancelsearch',
-            delay=delay, lifespan=lifespan)
+        await self.add_output("|/cancelsearch", delay=delay, lifespan=lifespan)
 
     # # # # # # # # # # #
     # Room interactions #
@@ -597,8 +629,9 @@ class Client(user.User):
             fail. Use the Room.leave() method instead, or Client.leave(room.id)
         """
         assert type(room_id) is str, "Paramater room_id should be a string."
-        await self.add_output('|/join {}'.format(room_id),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "|/join {}".format(room_id), delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
     async def leave(self, room_id, *, delay=0, lifespan=math.inf):
@@ -612,11 +645,13 @@ class Client(user.User):
 
         Notes:
             This method takes a str. Attempting to pass in a Room object will
-            fail. Use the Room.leave() method instead, or Client.leave(room.id).
+            fail. Use the Room.leave() method instead, or
+            Client.leave(room.id).
         """
         assert type(room_id) is str, "Parameter room_id should be a string."
-        await self.add_output('{}|/leave'.format(room_id),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "{}|/leave".format(room_id), delay=delay, lifespan=lifespan
+        )
 
     # # # # # # # # # # # #
     # Battle interactions #
@@ -625,7 +660,8 @@ class Client(user.User):
     @docutils.format()
     async def save_replay(self, battle_id, *, delay=0, lifespan=math.inf):
         """
-        Requests data from the server to save the battle specified by battle_id.
+        Requests data from the server to save the battle specified by
+        battle_id.
 
         Args:
             {battle_id}
@@ -643,12 +679,13 @@ class Client(user.User):
             The actual upload is handled on the server's response through a
             query response with type "savereplay".
         """
-        assert type(battle_id) is str, battle_id.startswith('battle-')
-        await self.add_output('{}|/savereplay'.format(battle_id,
-            delay=delay, lifespan=lifespan))
+        assert type(battle_id) is str, battle_id.startswith("battle-")
+        await self.add_output(
+            "{}|/savereplay".format(battle_id), delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
-    def save_replay_local(self, battle_id, output_path = None):
+    def save_replay_local(self, battle_id, output_path=None):
         """
         Saves logs from a battle locally to output_path.
 
@@ -660,13 +697,16 @@ class Client(user.User):
         Returns:
             None
         """
-        assert battle_id in self.rooms, 'Client is not in the room {}, replay '
-        'cannot be saved.'.format(battle_id)
+        assert (
+            battle_id in self.rooms
+        ), "Client is not in the room " "{}, replay cannot be saved.".format(
+            battle_id
+        )
         if output_path is None:
-            output_path = '{}.txt'.format(battle_id)
-        assert type(output_path) is str, 'output_path must be a string.'
-        with open(output_path, 'wt') as f:
-            f.write('\n'.join((self.rooms[battle_id].logs)))
+            output_path = "{}.txt".format(battle_id)
+        assert type(output_path) is str, "output_path must be a string."
+        with open(output_path, "wt") as f:
+            f.write("\n".join((self.rooms[battle_id].logs)))
 
     @docutils.format()
     async def forfeit(self, battle_id, *, delay=0, lifespan=math.inf):
@@ -680,19 +720,21 @@ class Client(user.User):
             battle_id (:obj:`str`) : The id of the battle you want to forfeit.
                 Ex: 'battle-gen7monotype-12345678'
         """
-        await self.add_output('{}|/forfeit'.format(battle_id),
-            delay=delay, lifespan=lifespan)
+        await self.add_output(
+            "{}|/forfeit".format(battle_id), delay=delay, lifespan=lifespan
+        )
 
     # # # # # # #
     # Messages  #
     # # # # # # #
 
     @docutils.format()
-    async def private_message(self, user_name, content, strict=False, *,
-        delay=0, lifespan=math.inf):
+    async def private_message(
+        self, user_name, content, strict=False, *, delay=0, lifespan=math.inf
+    ):
         """
-        Sends a private message with content to the user specified by user_name.
-        The client must be logged in for this to work.
+        Sends a private message with content to the user specified by
+        user_name. The client must be logged in for this to work.
 
         Args:
             user_name (:obj:`str`) : The name of the user the client will send
@@ -711,12 +753,14 @@ class Client(user.User):
         """
         content = utils.clean_message_content(content, strict=strict)
         user_id = utils.name_to_id(user_name)
-        await self.add_output('|/msg {}, {}'.format(user_id, content),
-            delay=0, lifespan=math.inf)
+        await self.add_output(
+            "|/msg {}, {}".format(user_id, content), delay=0, lifespan=math.inf
+        )
 
     @docutils.format()
-    async def say(self, room_id, content, strict=False,
-        delay=0, lifespan=math.inf):
+    async def say(
+        self, room_id, content, strict=False, delay=0, lifespan=math.inf
+    ):
         """
         Sends a chat message to the room specified by room_id. The client must
         be logged in for this to work
@@ -738,10 +782,11 @@ class Client(user.User):
             {strict_error}
         """
         content = utils.clean_message_content(content, strict=strict)
-        if room_id == 'lobby':
-            room_id = ''
-        await self.add_output('{}|{}'.format(room_id, content),
-            delay=delay, lifespan=lifespan)
+        if room_id == "lobby":
+            room_id = ""
+        await self.add_output(
+            "{}|{}".format(room_id, content), delay=delay, lifespan=lifespan
+        )
 
     # # # # # # # #
     # Challenges  #
@@ -760,7 +805,7 @@ class Client(user.User):
 
         """
         await self.upload_team(team)
-        await self.use_command('', 'challenge', user_id, battle_format)
+        await self.use_command("", "challenge", user_id, battle_format)
 
     @docutils.format()
     async def cancel_challenge(self, *, delay=0, lifespan=math.inf):
@@ -771,10 +816,14 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.use_command('', 'cancelchallenge', delay=delay, lifespan=lifespan)
+        await self.use_command(
+            "", "cancelchallenge", delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
-    async def accept_challenge(self, user_id, team, *, delay=0, lifespan=math.inf):
+    async def accept_challenge(
+        self, user_id, team, *, delay=0, lifespan=math.inf
+    ):
         """
         Accept a challenge from the player specified by user_id
 
@@ -785,8 +834,9 @@ class Client(user.User):
             {lifespan}
         """
         await self.upload_team(team)
-        await self.use_command('', 'accept', user_id,
-            delay=delay, lifespan=lifespan)
+        await self.use_command(
+            "", "accept", user_id, delay=delay, lifespan=lifespan
+        )
 
     @docutils.format()
     async def reject_challenge(self, user_id, *, delay=0, lifespan=math.inf):
@@ -798,8 +848,9 @@ class Client(user.User):
             {delay}
             {lifespan}
         """
-        await self.user_command('', 'reject', user_id,
-            delay=delay, lifespan=lifespan)
+        await self.user_command(
+            "", "reject", user_id, delay=delay, lifespan=lifespan
+        )
 
     # # # # # #
     # Queries #
@@ -818,15 +869,15 @@ class Client(user.User):
         Returns:
             None
         """
-        await self.add_output('|/cmd rooms',
-            delay=delay, lifespan=lifespan)
+        await self.add_output("|/cmd rooms", delay=delay, lifespan=lifespan)
 
     @docutils.format()
-    async def query_battles(self, battle_format='', min_elo=None,
-        delay=0, lifespan=math.inf):
+    async def query_battles(
+        self, battle_format="", min_elo=None, delay=0, lifespan=math.inf
+    ):
         """
-        Queries the server for a list of public battles. The result will appears
-        as a query response with type 'roomlist'.
+        Queries the server for a list of public battles. The result will
+        appears as a query response with type 'roomlist'.
 
         Args:
             {battle_format}
@@ -839,16 +890,14 @@ class Client(user.User):
             None
         """
         battle_format = utils.name_to_id(battle_format)
-        output = '|/cmd roomlist {}'.format(utils.name_to_id(battle_format))
+        output = "|/cmd roomlist {}".format(utils.name_to_id(battle_format))
         if min_elo is not None:
-            output += ', {}'.format(min_elo)
-        await self.add_output(output,
-            delay=delay, lifespan=lifespan)
+            output += ", {}".format(min_elo)
+        await self.add_output(output, delay=delay, lifespan=lifespan)
 
     # # # # #
     # Hooks #
     # # # # #
-
 
     async def on_disconnect(self, reconnecting):
         """
@@ -896,8 +945,8 @@ class Client(user.User):
         """
         |coro|
 
-        Hook for subclasses. Called when the client receives a room init message
-        (generally upon joining a new room)
+        Hook for subclasses. Called when the client receives a room init
+        message (generally upon joining a new room)
 
         Args:
             room_obj (:obj:`room.Room`) : Room object for the room that was
@@ -934,8 +983,8 @@ class Client(user.User):
         Args:
             query_type (:obj:`str`) : The query type.
                 Ex: 'savereplay', 'rooms', 'roomlist', 'userdetails'
-            response (:obj:`dict`) : The json response from the server bundled with
-                the response
+            response (:obj:`dict`) : The json response from the server bundled
+                with the response
 
         Notes:
             Does nothing by default.
@@ -953,13 +1002,13 @@ class Client(user.User):
             challenge_data (:obj:`dict`) : A dict containing information about
                 active incoming and outgoing challenges.
                 Ex: {"challengesFrom":{"scriptkitty":"gen7randombattle"},
-                     "challengeTo":{"to":"scriptkitty","format":"gen7randombattle"}
+                     "challengeTo":{"to":"scriptkitty","format":"gen7ou"}
 
         Notes:
             Does nothing by default.
-            Note that challengesFrom is plural, since a client can receive multiple
-            challenges, but challengesTo is singular, since only one challenge
-            can be sent at a time.
+            Note that challengesFrom is plural, since a client can receive
+            multiple challenges, but challengesTo is singular, since only one
+            challenge can be sent at a time.
         """
         pass
 
@@ -985,8 +1034,8 @@ class Client(user.User):
         Hook for subclasses. Called when the client receives a private message.
 
         Args:
-            private_message (:obj:`showdown.message.PrivateMessage`) : An object
-                representing the received message.
+            private_message (:obj:`showdown.message.PrivateMessage`) : An
+                object representing the received message.
 
         Notes:
             Does nothing by default.
@@ -1007,8 +1056,8 @@ class Client(user.User):
             inp_type (:obj:`str`) : The type of information received.
                 Ex: 'l' (user leave), 'j' (user join), 'c:' (chat message)
             params (:obj:`list`) : List of the parameters associated with the
-                inp_type. Ex: a user leave has params of ['zarel'], where 'zarel'
-                represents the user id of the user that left.
+                inp_type. Ex: a user leave has params of ['zarel'], where
+                'zarel' represents the user id of the user that left.
 
         Notes:
             Does nothing by default.

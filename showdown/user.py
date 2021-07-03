@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 """Module for showdown's User class"""
-import json
-import re
 import requests
 import string
 import math
 from . import utils, server
 
-USER_DATA_URL_BASE = 'https://pokemonshowdown.com/users/{user_id}.json'
+USER_DATA_URL_BASE = "https://pokemonshowdown.com/users/{user_id}.json"
+
 
 class User:
-    '''
+    """
     Class representing on a User on Showdown. Includes utility methods for
     sending private messages and requesting data.
 
@@ -30,16 +29,19 @@ class User:
             Ex: 'scriptkitty'
         client (obj:`showdown.client.Client` or None) : client used in the
             object's utility methods
-    '''
+    """
+
     def __init__(self, user_str, client=None):
         if not user_str:
-            self.auth = ' '
-            name = ''
-        elif user_str[0].lower() not in (string.ascii_lowercase + string.digits):
+            self.auth = " "
+            name = ""
+        elif user_str[0].lower() not in (
+            string.ascii_lowercase + string.digits
+        ):
             self.auth = user_str[0]
             name = user_str[1:]
         else:
-            self.auth = ' '
+            self.auth = " "
             name = user_str
         self.set_name(name)
         self.client = client
@@ -55,10 +57,10 @@ class User:
         return hash(self.id)
 
     def __repr__(self):
-        return '<{} `{}`>'.format(self.__class__.__name__, str(self))
+        return "<{} `{}`>".format(self.__class__.__name__, str(self))
 
     def __str__(self):
-        return '{}{}'.format(self.auth.strip(), self.name)
+        return "{}{}".format(self.auth.strip(), self.name)
 
     def set_name(self, name):
         """
@@ -73,7 +75,8 @@ class User:
 
     def name_matches(self, name):
         """
-        Checks if the User object's id matches the id of the username passed in.
+        Checks if the User object's id matches the id of the username passed
+        in.
 
         Args:
             name (obj:`str`) : The name to compare with the User object's id
@@ -102,7 +105,7 @@ class User:
         await client.send_challenge(self.id, team, tier)
 
     @utils.require_client
-    async def cancel_challenge(self):
+    async def cancel_challenge(self, client=None):
         """
         |coro|
 
@@ -132,8 +135,9 @@ class User:
         await client.accept_challenge(self.id, team)
 
     @utils.require_client
-    async def send_message(self, content, strict=False, client=None,
-        delay=0, lifespan=math.inf):
+    async def send_message(
+        self, content, strict=False, client=None, delay=0, lifespan=math.inf
+    ):
         """
         |coro|
 
@@ -153,12 +157,14 @@ class User:
         Returns:
             None
         """
-        await client.private_message(self.id, content, strict=False,
-            delay=delay, lifespan=lifespan)
+        await client.private_message(
+            self.id, content, strict=False, delay=delay, lifespan=lifespan
+        )
 
     @utils.require_client
-    async def request_user_details(self, client=None,
-        delay=0, lifespan=math.inf):
+    async def request_user_details(
+        self, client=None, delay=0, lifespan=math.inf
+    ):
         """
         |coro|
 
@@ -178,19 +184,24 @@ class User:
         Returns:
             None
         """
-        await self.client.add_output('|/cmd userdetails {}'.format(self.id),
-            delay=delay, lifespan=lifespan)
+        await self.client.add_output(
+            "|/cmd userdetails {}".format(self.id),
+            delay=delay,
+            lifespan=lifespan,
+        )
 
     def _get_user_data(self, force_update=False):
         if not force_update and self._user_data is not None:
             return
-        response = requests.get(USER_DATA_URL_BASE.format(user_id = self.id))
+        response = requests.get(USER_DATA_URL_BASE.format(user_id=self.id))
         self._user_data = response.json()
 
     async def _get_user_data_async(self, session, force_update=False):
         if not force_update and self._user_data is not None:
             return
-        response = await session.get(USER_DATA_URL_BASE.format(user_id = self.id))
+        response = await session.get(
+            USER_DATA_URL_BASE.format(user_id=self.id)
+        )
         self._user_data = await response.json()
 
     def get_ratings(self):
@@ -215,12 +226,12 @@ class User:
                     'rprd': '122.8583080769'}}
         """
         self._get_user_data(force_update=True)
-        return self._user_data['ratings']
+        return self._user_data["ratings"]
 
     @utils.require_client_session
     async def get_ratings_async(self, session=None):
         await self._get_user_data_async(session, force_update=True)
-        return self._user_data['ratings']
+        return self._user_data["ratings"]
 
     def get_register_time(self):
         """
@@ -235,12 +246,12 @@ class User:
             1304640000
         """
         self._get_user_data()
-        return self._user_data['registertime']
+        return self._user_data["registertime"]
 
     @utils.require_client_session
     async def get_register_time_async(self, session):
         await self._get_user_data_async(session)
-        return self._user_data['registertime']
+        return self._user_data["registertime"]
 
     def get_register_name(self):
         """
@@ -256,12 +267,12 @@ class User:
             'Crashy ★ - '
         """
         self._get_user_data()
-        return self._user_data['username']
+        return self._user_data["username"]
 
     @utils.require_client_session
     async def get_register_name_async(self, session=None):
         await self._get_user_data_async(session)
-        return self._user_data['username']
+        return self._user_data["username"]
 
     def get_ladder(self, server_id=None):
         """
@@ -289,33 +300,27 @@ class User:
               'username': 'Argus2Spooky',
               'w': '618'}]
         """
-        params = {
-            'act' : 'ladderget',
-            'user' : self.id
-        }
+        params = {"act": "ladderget", "user": self.id}
         if server_id is None:
             if self.client:
                 server_id = self.client.server.id
             else:
-                server_id = 'showdown'
-        result = requests.get(server.ACTION_URL_BASE.format(server_id=server_id),
-            params=params).text
+                server_id = "showdown"
+        result = requests.get(
+            server.ACTION_URL_BASE.format(server_id=server_id), params=params
+        ).text
         return utils.parse_http_input(result)
 
     @utils.require_client_session
     async def get_ladder_async(self, server_id=None, session=None):
-        params = {
-            'act' : 'ladderget',
-            'user' : self.id
-        }
+        params = {"act": "ladderget", "user": self.id}
         if server_id is None:
             if self.client:
                 server_id = self.client.server.id
             else:
-                server_id = 'showdown'
+                server_id = "showdown"
         resp = await session.get(
-            server.ACTION_URL_BASE.format(server_id=server_id),
-            params=params
+            server.ACTION_URL_BASE.format(server_id=server_id), params=params
         )
         result = await resp.text()
         return utils.parse_http_input(result)
